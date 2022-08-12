@@ -92,4 +92,8 @@ add_executable(r2live
 
 target_link_libraries(r2live ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES}) 
 
+add_executable(save_registered_cloud src/save_registered_cloud.cpp)
+target_link_libraries(save_registered_cloud ${catkin_LIBRARIES} ${PCL_LIBRARIES})
 
+add_executable(double_intergration_imu src/double_intergration_imu.cpp)
+target_link_libraries(double_intergration_imu   ${catkin_LIBRARIES} )

@@ -136,6 +136,9 @@ std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>, sensor_msgs::PointC
         IMUs.emplace_back(imu_buf.front());
         if (IMUs.empty())
             ROS_WARN("no imu between two image");
+
+        ROS_WARN("size of feature_buf is %d .", feature_buf.size() );
+
         measurements.emplace_back(IMUs, img_msg);
     }
     return measurements;
@@ -218,7 +221,13 @@ void restart_callback(const std_msgs::BoolConstPtr &restart_msg)
 
 void relocalization_callback(const sensor_msgs::PointCloudConstPtr &points_msg)
 {
-    //printf("relocalization callback! \n");
+for(int i=0; i<100;i++)
+{
+
+    ROS_ERROR("-------------------------------\n");
+    std::cout << __FILE__ << __LINE__ << std::endl;
+    ROS_ERROR("detect_loop_closure , to relocalization callback! \n");
+}
     m_buf.lock();
     relo_buf.push(points_msg);
     m_buf.unlock();
@@ -244,6 +253,7 @@ void lock_lio(Estimator &estimator)
 // ANCHOR - sync lio to cam
 void sync_lio_to_vio(Estimator &estimator)
 {
+    //ROS_ERROR("lio check state");
     check_state(g_lio_state);
     int frame_idx = estimator.frame_count;
     frame_idx = WINDOW_SIZE;
@@ -719,6 +729,7 @@ void process()
                         (t_add.norm() < 0.5) &&
                         (mean_reprojection_error < 1.0))
                     {
+std::cout << __FILE__ << "  enter : " << __LINE__ << std::endl;
                         g_lio_state = state_aft_integration;
                         eigen_q q_I = eigen_q(1.0, 0, 0, 0);
                         double angular_diff = eigen_q(g_lio_state.rot_end.transpose() * state_before_esikf.rot_end).angularDistance(q_I) * 57.3;
@@ -726,6 +737,7 @@ void process()
                         if ((t_diff > 0.2) || (angular_diff > 2.0))
                         {
                             g_lio_state = state_before_esikf;
+
                         }
                         // Unblock lio process, publish esikf state.
                         // TODO: publish esikf state.
@@ -737,8 +749,12 @@ void process()
             }
 
             // Update state with pose graph optimization 
-            g_lio_state = state_before_esikf;
-            t_s.tic();
+
+
+            //g_lio_state = state_before_esikf;
+           
+ t_s.tic();
+
             estimator.solve_image_pose(img_msg->header);
 
             if (g_camera_lidar_queue.m_if_have_lidar_data)
@@ -824,7 +840,9 @@ void process()
         m_state.lock();
         if (estimator.solver_flag == Estimator::SolverFlag::NON_LINEAR)
         {
+
                 update();
+
         }
         m_state.unlock();
         m_buf.unlock();
@@ -870,6 +888,10 @@ int main(int argc, char **argv)
 
     std::thread measurement_process{process};
     ros::spin();
+
+    // add by ln 20220712 , for enter ~fast_lio() to save pcd file when exit;
+    delete estimator.m_fast_lio_instance;
+    std::cout << " END " << std::endl;
 
     return 0;
 }

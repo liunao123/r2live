@@ -20,12 +20,17 @@
     <node pkg="r2live" type="lio_feat_extract" name="lio_feat_extract"  output="log"/>
 
     <group if="1">
-        <node name="r2live" pkg="r2live" type="r2live" output="screen">
+        <node name="r2live" pkg="r2live" type="r2live" output="screen" required="true">
                 <param name="config_file" type="string" value="$(arg config_path)" />
                 <param name="vins_folder" type="string" value="$(arg vins_path)" />
         </node> 
     </group>
         
+  <node pkg="r2live" type="save_registered_cloud" name="save_registered_cloud"  output="log"/>
+ 
+  <node pkg="rosbag" type="play" name="player"  output="screen" args="/home/0805.bag -s 200  --duration 790 "/>
+
+
     <arg name="rviz" default="1" />
     <group if="$(arg rviz)">
         <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" args="-d $(find r2live)/../config/rviz/vins_rviz_config.rviz" />

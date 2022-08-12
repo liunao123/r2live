@@ -56,6 +56,7 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/random_sample.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/io/pcd_io.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -69,7 +70,9 @@
 // namespace plt = matplotlibcpp;
 #endif
 
+#include <pcl/octree/octree_search.h>
 
+#include <pcl/filters/approximate_voxel_grid.h>
 
 #define INIT_TIME (0)
 // #define LASER_POINT_COV (0.0015) // Ori
@@ -87,6 +90,8 @@ extern MeasureGroup Measures;
 extern StatesGroup g_lio_state;
 extern std::shared_ptr<ImuProcess> g_imu_process;
 extern double g_lidar_star_tim;
+
+
 
 class Fast_lio
 {
@@ -144,6 +149,13 @@ public:
     //all points
     PointCloudXYZI::Ptr laserCloudFullRes2;//   (new PointCloudXYZI());
 
+    // pointcloud to save def by ln 20220713
+    PointCloudXYZI::Ptr temp_map;//   (new PointCloudXYZI());
+
+
+    // pcl::octree::OctreePointCloudSearch<pcl::PointXYZI> map_octree_;
+
+
     Eigen::Vector3f XAxisPoint_body; //(LIDAR_SP_LEN, 0.0, 0.0);
     Eigen::Vector3f XAxisPoint_world; //(LIDAR_SP_LEN, 0.0, 0.0);
 
@@ -189,6 +201,10 @@ public:
     pcl::VoxelGrid<PointType> downSizeFilterSurf;
     pcl::VoxelGrid<PointType> downSizeFilterMap;
 
+// 
+   pcl::VoxelGrid<PointType> downSizeFilterTempMap;
+    // pcl::ApproximateVoxelGrid<PointType> downSizeFilterTempMap;
+
     /*** debug record ***/
     std::ofstream fout_pre, fout_out;
     // Fast_lio() = delete;
@@ -197,6 +213,8 @@ public:
     void SigHandle(int sig)
     {
         flg_exit = true;
+        ROS_ERROR("22222222222-0 6end");
+
         ROS_WARN("catch sig %d", sig);
         sig_buffer.notify_all();
     }
@@ -813,19 +831,47 @@ public:
         cube_points_add = boost::make_shared<PointCloudXYZI>();
         laserCloudFullRes2 = boost::make_shared<PointCloudXYZI>();
         laserCloudFullResColor = boost::make_shared<pcl::PointCloud<pcl::PointXYZI>>();
-
+        
+        temp_map = boost::make_shared<PointCloudXYZI>();  
+      
         XAxisPoint_body = Eigen::Vector3f(LIDAR_SP_LEN, 0.0, 0.0);
         XAxisPoint_world = Eigen::Vector3f(LIDAR_SP_LEN, 0.0, 0.0);
 
         downSizeFilterSurf.setLeafSize(filter_size_surf_min, filter_size_surf_min, filter_size_surf_min_z);
         downSizeFilterMap.setLeafSize(filter_size_map_min, filter_size_map_min, filter_size_map_min);
+
+        downSizeFilterTempMap.setLeafSize(0.1f , 0.1f, 0.1f);
+
         // m_lio_state_fp = fopen("/home/ziv/temp/lic_lio.log", "w+");
         // m_lio_costtime_fp = fopen("/home/ziv/temp/lic_lio_costtime.log", "w+");
         printf_line;
         m_thread_process = std::thread(&Fast_lio::process, this);
         printf_line;
+
     }
-    ~Fast_lio(){};
+
+    ~Fast_lio()
+    {
+        // save when exit by ln 20220711
+        // 保存前，再滤波一下 
+        std::cout << "size of map <before filter >: " << temp_map->width * temp_map->height << std::endl;
+        downSizeFilterTempMap.setInputCloud(temp_map);
+        downSizeFilterTempMap.filter(*temp_map);
+        std::cout << "size of map <after filter >:  " << temp_map->width * temp_map->height << std::endl;
+        // 保存点云到指定路径
+        if(!temp_map->points.empty())
+        {
+            std::cout << "START : save map to pcd file : /home/map/Save.pcd" << std::endl;
+            //pcl::io::savePCDFile ( "/home/map/Save.pcd", *temp_map);
+pcl::io::savePCDFileASCII ( "/home/map/Save.pcd", *temp_map);
+pcl::io::savePCDFileBinary ( "/home/map/Save1.pcd", *temp_map);
+            std::cout << "FINISH : save map to pcd file : /home/map/Save.pcd" << std::endl;
+        }
+        else
+        {
+            ROS_WARN("-------------- WARN: pointcloud is empty . -----------");
+        }
+    };
 
     int process()
     {
@@ -879,7 +925,7 @@ public:
             std::cout << "~~~~" << ROOT_DIR << " doesn't exist" << std::endl;
 
         //------------------------------------------------------------------------------------------------------
-        // signal(SIGINT, &fast_lio::SigHandle, this);
+        // signal(SIGINT, Fast_lio::SigHandle);
         ros::Rate rate(5000);
         bool status = ros::ok();
         g_camera_lidar_queue.m_liar_frame_buf = &lidar_buffer;
@@ -1435,8 +1481,6 @@ public:
                     t5 = omp_get_wtime();
                 }
 
-
-
                 /******* Publish current frame points in world coordinates:  *******/
                 laserCloudFullRes2->clear();
                 *laserCloudFullRes2 = dense_map_en ? (*feats_undistort) : (*feats_down);
@@ -1450,15 +1494,60 @@ public:
                     {
                         RGBpointBodyToWorld(&laserCloudFullRes2->points[i], &temp_point);
                         laserCloudFullResColor->push_back(temp_point);
+                    }                    
+                    // add by ln 20220715 test ok
+                    // modify by ln 202208055 : 为了减小数据量添加一些限定条件 NOT test 
+                    
+                    if( 0 ) // if save map when ext
+                    {
+                    static int cnts = 3;
+
+                    // 每 隔 几 帧 才保存一下
+                    if(3 == cnts++)
+                    {
+                        cnts = 0;
+                        static Eigen::Vector3d last_pose (0, 0, 0);
+                        static Eigen::Vector3d last_rota (0, 0, 0);
+
+                        // 判断 当和上次保存时候的位姿，发生一定程度的移动（0.3m）或者旋转（30度）才会 保存该帧点云
+                        if ((g_lio_state.pos_end - last_pose).norm() > 0.3 ||  
+                            (last_rota - g_lio_state.rot_end.eulerAngles(2, 1, 0)).norm() > 30 * M_PI / 180 )
+                        {
+
+                            PointCloudXYZI::Ptr temp;
+                            temp = boost::make_shared<PointCloudXYZI>();
+                            pcl::copyPointCloud(*laserCloudFullResColor, *temp); //复制
+
+                            //ROS_WARN("size of map <before filter >: %d ", temp->width * temp->height); 
+                            pcl::RandomSample<PointType> rand_filter;
+                            rand_filter.setSample(4000);
+                            rand_filter.setInputCloud(temp);
+                            rand_filter.filter(*temp);
+                          //  downSizeFilterTempMap.setInputCloud(temp);
+                            //downSizeFilterTempMap.filter(*temp);
+                            (*temp_map) += (*temp); // 
+                            ROS_WARN("size of map <after filter >: %d ", temp_map->width * temp_map->height);
+
+                            last_pose = g_lio_state.pos_end;
+                            last_rota = g_lio_state.rot_end.eulerAngles(2, 1, 0);
+
+                        }
                     }
 
+                    }
+					
                     sensor_msgs::PointCloud2 laserCloudFullRes3;
                     pcl::toROSMsg(*laserCloudFullResColor, laserCloudFullRes3);
                     // laserCloudFullRes3.header.stamp = ros::Time::now(); //.fromSec(last_timestamp_lidar);
                     laserCloudFullRes3.header.stamp.fromSec(Measures.lidar_end_time);
                     laserCloudFullRes3.header.frame_id = "world";       // world; camera_init
                     pubLaserCloudFullRes.publish(laserCloudFullRes3);
-                    if(g_camera_lidar_queue.m_if_write_res_to_bag)
+                    
+static int cnts = 0;
+ROS_ERROR("registered pc size() is %d .", ++cnts);
+
+
+if(g_camera_lidar_queue.m_if_write_res_to_bag)
                     {
                         g_camera_lidar_queue.m_bag_for_record.write(pubLaserCloudFullRes.getTopic(),laserCloudFullRes3.header.stamp, laserCloudFullRes3);
                     }

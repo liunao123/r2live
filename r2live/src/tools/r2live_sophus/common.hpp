@@ -116,6 +116,7 @@ template <class Scalar>
 struct Constants {
   SOPHUS_FUNC static Scalar epsilon() { return Scalar(1e-10); }
 
+
   SOPHUS_FUNC static Scalar epsilonSqrt() {
     using std::sqrt;
     return sqrt(epsilon());

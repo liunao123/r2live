@@ -201,7 +201,9 @@ void Estimator::solve_image_pose(const std_msgs::Header &header)
     else
     {
         TicToc t_solve;
+
         solveOdometry();
+
         ROS_DEBUG("Odom solver costs: %fms", t_solve.toc());
         if (failureDetection())
         {
@@ -216,7 +218,9 @@ void Estimator::solve_image_pose(const std_msgs::Header &header)
         }
 
         TicToc t_margin;
+
         slideWindow();
+
         f_manager.removeFailures();
         ROS_DEBUG("whole marginalization costs: %fms", t_margin.toc());
         // prepare output of VINS
@@ -316,7 +320,7 @@ bool Estimator::initialStructure()
               relative_R, relative_T,
               sfm_f, sfm_tracked_points))
     {
-        ROS_DEBUG("global SFM failed!");
+        ROS_ERROR("global SFM failed!");
         marginalization_flag = MARGIN_OLD;
         return false;
     }
@@ -521,10 +525,13 @@ void Estimator::solveOdometry()
     if (solver_flag == NON_LINEAR)
     {
         TicToc t_tri;
+
         f_manager.triangulate(Ps, tic, ric);
+
         ROS_DEBUG("triangulation costs %f", t_tri.toc());
         // ANCHOR - using optimization
         optimization_LM();
+
     }
 }
 
@@ -564,7 +571,17 @@ void Estimator::vector2double()
         m_para_Ex_Pose[i][4] = q.y();
         m_para_Ex_Pose[i][5] = q.z();
         m_para_Ex_Pose[i][6] = q.w();
+
     }
+
+
+    for (int i = 0; i <  6; i++)
+    {
+ //std::cout  << __FILE__ << ": " << __LINE__ << m_para_Ex_Pose[0][i] << std::endl<< std::endl;
+
+    }
+  
+
 
     VectorXd dep = f_manager.getDepthVector();
     for (int i = 0; i < f_manager.getFeatureCount(); i++)
@@ -620,6 +637,7 @@ void Estimator::double2vector()
         Bgs[i] = Vector3d(m_para_SpeedBias[i][6],
                           m_para_SpeedBias[i][7],
                           m_para_SpeedBias[i][8]);
+
     }
 
     for (int i = 0; i < NUM_OF_CAM; i++)
@@ -671,7 +689,7 @@ bool Estimator::failureDetection()
         ROS_INFO(" little feature %d", f_manager.last_track_num);
         return true;
     }
-    if (Bas[WINDOW_SIZE].norm() > 1.0)
+    if (Bas[WINDOW_SIZE].norm() > 2.5)
     {
         ROS_INFO(" big IMU acc bias estimation %f", Bas[WINDOW_SIZE].norm());
         return true;
@@ -682,14 +700,14 @@ bool Estimator::failureDetection()
         return true;
     }
 
-    if( (tic[0] - READ_TIC[0]).norm() > 1.0 )
+    if( (tic[0] - READ_TIC[0]).norm() > 1.0 * 3 )
     {
         ROS_INFO(" big Extrinsic T error %f", (tic[0] - TIC[0]).norm());
         return true;
     }
 
     double ext_R_diff = Eigen::Quaterniond(ric[0]).angularDistance(Eigen::Quaterniond(READ_RIC[0])) * 57.3;
-    if (ext_R_diff > 20)
+    if (ext_R_diff > 20 * 2)
     {
         ROS_INFO(" big Extrinsic R error %f", ext_R_diff);
         return true;
@@ -703,12 +721,12 @@ bool Estimator::failureDetection()
     Vector3d tmp_P = Ps[WINDOW_SIZE];
     if ((tmp_P - last_P).norm() > 2.0)
     {
-        ROS_INFO(" big translation");
+        ROS_INFO(" big translation: %f", (tmp_P - last_P).norm());
         return true;
     }
     if (abs(tmp_P.z() - last_P.z()) > 2.0)
     {
-        ROS_INFO(" big z translation");
+        ROS_INFO(" big z translation :%f ",  abs(tmp_P.z() - last_P.z()));
         return true; 
     }
     Matrix3d tmp_R = Rs[WINDOW_SIZE];
@@ -718,7 +736,7 @@ bool Estimator::failureDetection()
     delta_angle = acos(delta_Q.w()) * 2.0 / 3.14 * 180.0;
     if (delta_angle > 20)
     {
-        ROS_INFO(" big delta_angle ");
+        ROS_INFO(" big delta_angle :%f ",delta_angle );
         return true;
     }
     return false;
