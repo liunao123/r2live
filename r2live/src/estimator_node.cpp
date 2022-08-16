@@ -137,8 +137,6 @@ std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>, sensor_msgs::PointC
         if (IMUs.empty())
             ROS_WARN("no imu between two image");
 
-        ROS_WARN("size of feature_buf is %d .", feature_buf.size() );
-
         measurements.emplace_back(IMUs, img_msg);
     }
     return measurements;

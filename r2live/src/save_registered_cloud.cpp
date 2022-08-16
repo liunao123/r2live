@@ -50,9 +50,9 @@ Save_pointcloud::~Save_pointcloud()
   // 保存点云到指定路径
   if(!map->points.empty())
   {
-      std::cout << "START : save map to pcd file : /home/map/Save.pcd" << std::endl;
-      pcl::io::savePCDFile ( "/home/map/Save.pcd", *map);
-      std::cout << "FINISH : save map to pcd file : /home/map/Save.pcd" << std::endl;
+      std::cout << "START : save map to pcd file : /home/map/Save_cloud_registered.pcd" << std::endl;
+      pcl::io::savePCDFile ( "/home/map/Save_cloud_registered.pcd", *map);
+      std::cout << "FINISH : save map to pcd file : /home/map/Save_cloud_registered.pcd" << std::endl;
   }
   else
   {

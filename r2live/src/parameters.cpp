@@ -67,6 +67,7 @@ void readParameters(ros::NodeHandle &n)
     std::string OUTPUT_PATH;
     fsSettings["output_path"] >> OUTPUT_PATH;
     VINS_RESULT_PATH = OUTPUT_PATH + "/vins_result_no_loop.csv";
+    
     std::cout << "result path " << VINS_RESULT_PATH << std::endl;
 
     // create folder if not exists
@@ -113,7 +114,7 @@ void readParameters(ros::NodeHandle &n)
         Eigen::Quaterniond Q(eigen_R);
         eigen_R = Q.normalized();
       
-ROS_INFO_STREAM("Extrinsic_R : " << std::endl << eigen_R);
+        ROS_INFO_STREAM("Extrinsic_R : " << std::endl << eigen_R);
 
         RIC.push_back(eigen_R);
         TIC.push_back(eigen_T);

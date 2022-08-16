@@ -73,6 +73,8 @@
 #include <pcl/octree/octree_search.h>
 
 #include <pcl/filters/approximate_voxel_grid.h>
+#include <pcl/visualization/cloud_viewer.h>
+
 
 #define INIT_TIME (0)
 // #define LASER_POINT_COV (0.0015) // Ori
@@ -151,7 +153,7 @@ public:
 
     // pointcloud to save def by ln 20220713
     PointCloudXYZI::Ptr temp_map;//   (new PointCloudXYZI());
-
+    ofstream lio_path_file;
 
     // pcl::octree::OctreePointCloudSearch<pcl::PointXYZI> map_octree_;
 
@@ -842,6 +844,8 @@ public:
 
         downSizeFilterTempMap.setLeafSize(0.1f , 0.1f, 0.1f);
 
+        lio_path_file.open("/home/map/lio_path.txt", ios::out);
+
         // m_lio_state_fp = fopen("/home/ziv/temp/lic_lio.log", "w+");
         // m_lio_costtime_fp = fopen("/home/ziv/temp/lic_lio_costtime.log", "w+");
         printf_line;
@@ -852,6 +856,8 @@ public:
 
     ~Fast_lio()
     {
+        lio_path_file.close();
+
         // save when exit by ln 20220711
         // 保存前，再滤波一下 
         std::cout << "size of map <before filter >: " << temp_map->width * temp_map->height << std::endl;
@@ -929,6 +935,9 @@ pcl::io::savePCDFileBinary ( "/home/map/Save1.pcd", *temp_map);
         ros::Rate rate(5000);
         bool status = ros::ok();
         g_camera_lidar_queue.m_liar_frame_buf = &lidar_buffer;
+
+
+
         while (ros::ok())
         {
             if (flg_exit)
@@ -1487,6 +1496,39 @@ pcl::io::savePCDFileBinary ( "/home/map/Save1.pcd", *temp_map);
 
                 int laserCloudFullResNum = laserCloudFullRes2->points.size();
 
+                // 20220813 开始 by ln
+                // 保存 雷达 坐标系下的 原始点云
+                // 后续通过优化后的位姿再转换到world坐标系下
+                std::stringstream ss;
+                ss << std::setprecision(19) << Measures.lidar_end_time;
+            
+                FileSystemHelper::createDirectoryIfNotExists(std::string("/home/map/pcd_lidar").c_str());
+
+                std::string filename = "/home/map/pcd_lidar/" + ss.str() + ".pcd" ;
+                ROS_WARN("save pcd file : %s, name<time> is %f .", filename.c_str(), Measures.lidar_end_time);
+                pcl::io::savePCDFile (  filename , *laserCloudFullRes2);
+
+                // ofstream lio_path_file("/home/map/lio_path.txt", ios::app);
+
+                lio_path_file.setf(ios::fixed, ios::floatfield);
+                lio_path_file.precision(0);
+                lio_path_file << Measures.lidar_end_time * 1e9 << ",";
+                lio_path_file.precision(5);
+                
+                Eigen::Quaterniond qua(g_lio_state.rot_end);
+
+                lio_path_file  
+                  << g_lio_state.pos_end.x() << ","
+                  << g_lio_state.pos_end.y() << ","
+                  << g_lio_state.pos_end.z() << ","
+                  << qua.w() << ","
+                  << qua.x() << ","
+                  << qua.y() << ","
+                  << qua.z() << endl;
+                // Eigen::Vector3d p_global(g_lio_state.rot_end * (p_body + Lidar_offset_to_IMU) + g_lio_state.pos_end);
+                // lio_path_file.close();
+
+
                 pcl::PointXYZI temp_point;
                 laserCloudFullResColor->clear();
                 {
@@ -1543,10 +1585,6 @@ pcl::io::savePCDFileBinary ( "/home/map/Save1.pcd", *temp_map);
                     laserCloudFullRes3.header.frame_id = "world";       // world; camera_init
                     pubLaserCloudFullRes.publish(laserCloudFullRes3);
                     
-static int cnts = 0;
-ROS_ERROR("registered pc size() is %d .", ++cnts);
-
-
 if(g_camera_lidar_queue.m_if_write_res_to_bag)
                     {
                         g_camera_lidar_queue.m_bag_for_record.write(pubLaserCloudFullRes.getTopic(),laserCloudFullRes3.header.stamp, laserCloudFullRes3);
