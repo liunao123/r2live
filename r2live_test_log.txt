@@ -1,0 +1,110 @@
+r2live发现的问题
+
+
+
+1、在initialStructure过程中，首先用到的structure from motion（SFM），
+   利用相邻帧上的特征点，来恢复出相机运动。
+   只要特征点不是很少， SFM过程基本可以顺利完成。
+   
+
+
+2、图像恢复出的尺度因子经常是 负 的，
+   在 1 描述的过程中，如果 SFM 成功，则会进行visualInitialAlign过程；
+   此时，先通过VisualIMUAlignment来计算 IMU 的gyroscope bias，然后进行LinearAlignment过程，
+   把相机的所有位置，重力加速度g，单目图像的尺度s；放到一起进行求解。
+   一旦所估计出的重力加速度和IMU测量的差距过大，或者尺度因子为 负值 。此时 visualInitialAlign 过程失败，。
+   就会出现 “Misalign of visual structure with IMU”的错误。
+   
+   目前分析来看，到此，起码图像的处理已经完成，但是 与 IMU 的测量有冲突，导致失败。
+
+
+3、指定的外参旋转矩阵会被转成四元数，然后归一化。
+   不同的旋转矩阵会对应一个位姿。
+   当使用VINS在线估计出来的外参（绕3个轴的旋转角度）（176.517  -175.92  -179.874）比
+                                    单独的标定得到的（171.864  -93.7768 -82.1446） 旋转看起来要符合实际情况。
+   但是很明显，二者的方向是不一样的。
+   测试发现：
+   且 单独标定的外参 所指定的相机方向 和实际方向不一致，但 VINS在线估计出的相机方向 是 符合预期的。
+   
+   如果在进行建图时，采用固定不变的外参，则程序会有 “ 旋转矩阵不正交的 错误”， 然后挂掉。
+
+
+4、最容易出现的错误：
+Misalign of visual structure with IMU 《VisualIMUAlignment对齐有问题：estimator.cpp 408 有问题》
+big IMU acc bias estimation
+ github 上 作者的回复：
+ Hi, firstly I suggest you to check your IMU stream, e.g. whether the IMU reading has a large bias.
+ You can do integration and double-integration on IMU readings, the trajectory should be normal for seconds.
+ 把相邻的两个IMU数据取均值，这样频率降为原来的 一半，效果看起来区别不大。
+ big IMU acc bias estimation 则是初始化的时候，得到的
+
+
+5、目前来看，改变imu的噪声水平，对实时位姿的估计影响较大。
+   目前利用imu_ultiz 估计出来的IMU噪声，如果将其扩大数倍（*2， *3 ， *5）
+   扩大 ，可以减小reboot的频率, 但是点云的偏移部分会被放大，位姿会不稳定，重影会出现。
+   当降低IMU的噪声水平时，地图的偏移会减小很多。
+
+
+6、在建图过程中估计出的状态量（位姿，速度，零偏，重力加速度），会被进行 check ，
+   测试发现 全局变量 g_lio_state 会出现速度过大的情况，
+   
+   在某一时刻的状态，其速度大于 10 时，系统旋转的估计有问题，给出提示，此时建图过程会跑偏。
+   
+   有2个位置会对其进行check， 并且大部分 时候的错误（估计出的速度过大），
+   
+   都是在 IMU_Processing.cpp 的imu_preintegration 函数中。
+   当偏移发生时，并且这个速度 会 逐步增大很多。
+
+
+
+7、硬件的硬同步问题，数据源之间的时间同步很重要，
+目前来看，测试更改了图像的时间戳，缓存数量使得最新的图像可以及时发出去，明显减小图像的延迟。
+但是图像与IMU的实际延迟依然不可得，目前让其在线估计该时间延迟，量级在0.001s级别。
+
+   参数，可以调整一下
+   #unsynchronization parameters
+   estimate_td: 1                      # online estimate time offset between camera and imu
+   td: 0.003--0.007                           # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)。
+
+
+8、VIO部分单独测试，也是可以运行的。并且回环也可以检测到
+   运行的稳定性和数据有关，
+   在r2live容易报错的地方，VIO原来的代码是没有的。如：IMU_Processing.cpp； estimator_optimization.cpp;
+   
+   
+9、建图的分辨率，
+0.1m 很容易漂移
+0.4m 默认的参数
+
+
+参数保持与demo一致。
+
+按以下思路进行测试：
+1、IMU数据单独拿出来，看一下是否正常（用另一个IMU作为参考）；
+2、重力加速度的量级，是否正常（正常端着走）；
+3、IMU数据要对应到视觉上；
+
+
+文件夹里的r2live-master测试版本：
+
+
+20220810
+1、目前的参数，楼下大圈和小圈的数据，vins都可以运行，但是尺度估计的不对，绕楼下几圈，轨迹会越来越小。
+2，官方训练的数据集，今天测试下来对楼下室外环境基本检测不到回环。但是回环检测的节点却可以输出位姿，更新频率数秒一次，很低。并且与状态估计节点之间的topic里一直没有数据交互。
+
+20220811
+1、VINS的回环检测正常，将pose_graph的回环检测已经加入到R2live中，并且二者的数据交互正常；
+2、位姿目前仅仅pose_graph可以通过检测到的回环进行纠正，r2live的轨迹还是偏移，然后点云地图更是如此；
+3、回环检测使用的词袋文件（brief_k10L6.bin）是通用的。
+4、启动pose_graph所需要的4个参数，目前使用：0 0 2 0.1，感觉良好。
+
+
+20220812
+1、estimator_node.cpp 第741行的 状态更新暂时注释掉了
+2、
+
+
+20220816
+1、回环现在把优化的位姿保存下来，然后通过另外的程序结合 点云 的时间戳 进行插值
+2、目前对 高度方向进行的 插值优化，感觉良好，但是水平方向上的偏移依然无法得到解决。
+
