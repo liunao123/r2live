@@ -860,6 +860,7 @@ public:
 
         // save when exit by ln 20220711
         // 保存前，再滤波一下 
+        /*
         std::cout << "size of map <before filter >: " << temp_map->width * temp_map->height << std::endl;
         downSizeFilterTempMap.setInputCloud(temp_map);
         downSizeFilterTempMap.filter(*temp_map);
@@ -869,14 +870,15 @@ public:
         {
             std::cout << "START : save map to pcd file : /home/map/Save.pcd" << std::endl;
             //pcl::io::savePCDFile ( "/home/map/Save.pcd", *temp_map);
-pcl::io::savePCDFileASCII ( "/home/map/Save.pcd", *temp_map);
-pcl::io::savePCDFileBinary ( "/home/map/Save1.pcd", *temp_map);
+            pcl::io::savePCDFileASCII ( "/home/map/Save.pcd", *temp_map);
+            pcl::io::savePCDFileBinary ( "/home/map/Save1.pcd", *temp_map);
             std::cout << "FINISH : save map to pcd file : /home/map/Save.pcd" << std::endl;
         }
         else
         {
             ROS_WARN("-------------- WARN: pointcloud is empty . -----------");
         }
+        */
     };
 
     int process()
@@ -1499,33 +1501,44 @@ pcl::io::savePCDFileBinary ( "/home/map/Save1.pcd", *temp_map);
                 // 20220813 开始 by ln
                 // 保存 雷达 坐标系下的 原始点云
                 // 后续通过优化后的位姿再转换到world坐标系下
+
+                static bool init_flag = false;
+                if (!init_flag)
+                {            
+	                int r = system( "rm -r /home/map/pcd_lidar/" );
+	                if (r < 0)
+	                {
+	                	std::cout << "删除原来的点云失败" << std::endl;
+	                }
+                    init_flag =  true;
+                }
+
+                FileSystemHelper::createDirectoryIfNotExists(std::string("/home/map/pcd_lidar").c_str());
+
                 std::stringstream ss;
                 ss << std::setprecision(19) << Measures.lidar_end_time;
             
-                FileSystemHelper::createDirectoryIfNotExists(std::string("/home/map/pcd_lidar").c_str());
-
                 std::string filename = "/home/map/pcd_lidar/" + ss.str() + ".pcd" ;
-                ROS_WARN("save pcd file : %s, name<time> is %f .", filename.c_str(), Measures.lidar_end_time);
+                // ROS_WARN("save pcd file : %s, name<time> is %f .", filename.c_str(), Measures.lidar_end_time);
                 pcl::io::savePCDFile (  filename , *laserCloudFullRes2);
 
                 // ofstream lio_path_file("/home/map/lio_path.txt", ios::app);
 
                 lio_path_file.setf(ios::fixed, ios::floatfield);
-                lio_path_file.precision(0);
-                lio_path_file << Measures.lidar_end_time * 1e9 << ",";
+                lio_path_file.precision(10);
+                lio_path_file << Measures.lidar_end_time  << " ";
                 lio_path_file.precision(5);
                 
                 Eigen::Quaterniond qua(g_lio_state.rot_end);
 
                 lio_path_file  
-                  << g_lio_state.pos_end.x() << ","
-                  << g_lio_state.pos_end.y() << ","
-                  << g_lio_state.pos_end.z() << ","
-                  << qua.w() << ","
-                  << qua.x() << ","
-                  << qua.y() << ","
+                  << g_lio_state.pos_end.x() << " "
+                  << g_lio_state.pos_end.y() << " "
+                  << g_lio_state.pos_end.z() << " "
+                  << qua.w() << " "
+                  << qua.x() << " "
+                  << qua.y() << " "
                   << qua.z() << endl;
-                // Eigen::Vector3d p_global(g_lio_state.rot_end * (p_body + Lidar_offset_to_IMU) + g_lio_state.pos_end);
                 // lio_path_file.close();
 
 
