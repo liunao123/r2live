@@ -43,7 +43,7 @@ using namespace Eigen;
 geometry_msgs::PoseStamped to_PoseStamped(std::vector<double> v8)
 {
 	geometry_msgs::PoseStamped p;
-	p.header.stamp = ros::Time().fromSec(v8[0] / 1e9);
+	p.header.stamp = ros::Time().fromSec( v8[0] );
 	p.pose.position.x = v8[1];
 	p.pose.position.y = v8[2];
 	p.pose.position.z = v8[3];
@@ -108,7 +108,7 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	const char *delim = ",";
+	const char *delim = " ";
 	char buf[1024];
 
     // 获取 loop_path 的位姿
@@ -167,23 +167,24 @@ int main(int argc, char **argv)
 	cout << "start_time : " << std::to_string(start_time) << endl;
 	cout << "end_time : " << std::to_string(end_time) << endl;
 
-
 	vector<string> pcd_file;
-
-    // 这个读取的文件顺序是乱的
-	// GetFileNames(work_dir + "pcd_0805/", pcd_file);
 
 	// 这个读取的顺序是对的 
 	scan_dir_get_filename(work_dir + "pcd_lidar/", pcd_file);
 
 	pcl::PointCloud<pcl::PointXYZ>::Ptr map(new pcl::PointCloud<pcl::PointXYZ>);
-    // pcl::visualization::CloudViewer viewer("Cloud Viewer");
+    
+	// pcl::visualization::CloudViewer viewer("Cloud Viewer");
+
 	cout << "size of pcd : " << pcd_file.size() << endl;
 	cout << "size of lio_pose : " << lio_pose.size() << endl;
 
     for (int i = 0; i < pcd_file.size(); i += 5 )
-	// for (size_t i = 0; i < 500 ; i++)
 	{
+
+		if(i == 800 )
+		    i = 5000;
+
 		auto pos_last_g = pcd_file[i].find_last_of("/") + 1 ;
 		auto pos_last_d = pcd_file[i].find_last_of(".") + 1 ;
 		// 从文件名字里，获取时间
@@ -191,7 +192,13 @@ int main(int argc, char **argv)
 
 		double pose_time = lio_pose[i].header.stamp.toSec();
 
-    	cout  <<  i << "th pcd : " << endl;
+		if ( std::fabs( pcd_time - pose_time ) > 0.1 )
+		{
+        	cout  <<  "pcd 时间与其 pose时间不对应 " << endl;
+			continue;
+		}
+
+    	cout  <<  i << "th pcd : " << pcd_file[i] << endl;
 
 		if (pcd_time < start_time || pcd_time > end_time)
 		{
@@ -211,7 +218,7 @@ int main(int argc, char **argv)
 
 					double dt_after = after_time - pcd_time;
 					double dt = after_time - before_time ;
-					cout <<  "  dt : " << dt   << " dt_before " << dt_before << "  lamda :" << dt_before / dt << endl;
+					// cout <<  "  dt : " << dt   << " dt_before " << dt_before << "  lamda :" << dt_before / dt << endl;
 
 					// 对平移插值
 					Eigen::Vector3d
@@ -239,11 +246,9 @@ int main(int argc, char **argv)
 					// Eigen::Quaternion<double> now_pcd_rot = start_ori.slerp(  dt_before / dt  , end_ori);
 
 					// 对平移插值 只用 了  Z 方向上的值
-					// // lio_pose[i].pose.position.z = now_pcd_tans[2];
-
-					// now_pcd_tans(0) = 	lio_pose[i].pose.position.x;
-					// now_pcd_tans(1) = 	lio_pose[i].pose.position.y;
-					// // now_pcd_tans(2) = 	lio_pose[i].pose.position.z;
+					now_pcd_tans(0) = 	lio_pose[i].pose.position.x;
+					now_pcd_tans(1) = 	lio_pose[i].pose.position.y;
+					// now_pcd_tans(2) = 	lio_pose[i].pose.position.z;
 
 				    Eigen::Quaterniond now_pcd_rot = Eigen::Quaterniond(lio_pose[i].pose.orientation.w,
 														  lio_pose[i].pose.orientation.x,
@@ -260,16 +265,16 @@ int main(int argc, char **argv)
 					pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 					transformed_cloud->points.resize(cloud->points.size());
 
-                    static const Eigen::Vector3d Lidar_offset_to_IMU_temp(0.05512, 0.02226, 0.0297); // Horizon r2live
+                    // static const Eigen::Vector3d Lidar_offset_to_IMU_temp(0.05512, 0.02226, 0.0297); // Horizon r2live
 					// 官方 https://livox-wiki-cn.readthedocs.io/zh_CN/latest/introduction/Point_Cloud_Characteristics_and_Coordinate_System%20.html#id2
-                    // static const Eigen::Vector3d Lidar_offset_to_IMU_temp(-0.0847, -0.0425, -0.0353); // -84.7，-42.5，-35.3
+                    static const Eigen::Vector3d Lidar_offset_to_IMU_temp(0.0847, 0.0425, 0.0353); // -84.7，-42.5，-35.3
 
 // way 1
 					// 构建变换矩阵
 					Eigen::Isometry3d TM = Eigen::Isometry3d::Identity();
 					TM.pretranslate(now_pcd_tans);
 					TM.rotate(now_pcd_rot.matrix());
-					cout << TM.matrix() << endl;
+					// cout << TM.matrix() << endl;
 
 					for (int in=0; in < cloud->points.size() ; in++)
 					{
@@ -284,19 +289,15 @@ int main(int argc, char **argv)
 					// for (int in=0; in < cloud->points.size() ; in++)
 					// {
                     //     Eigen::Vector3d p_body(cloud->points[in].x, cloud->points[in].y, cloud->points[in].z);
-
-                    //     // Eigen::Vector3d p_global(  now_pcd_rot.matrix().inverse() * (p_body - now_pcd_tans) - Lidar_offset_to_IMU_temp);
-
                     //     Eigen::Vector3d p_global(now_pcd_rot.matrix() * (p_body + Lidar_offset_to_IMU_temp) + now_pcd_tans);
-
                     //     transformed_cloud->points[in].x = p_global(0);
                     //     transformed_cloud->points[in].y = p_global(1);
                     //     transformed_cloud->points[in].z = p_global(2);
 					// }
 
-					(*map) += (*transformed_cloud);    
-                    //  viewer.showCloud( map );
-		            //  boost::this_thread::sleep(boost::posix_time::microseconds(10));
+					(*map) += (*transformed_cloud);
+                    // viewer.showCloud( map );
+		            // boost::this_thread::sleep(boost::posix_time::microseconds(1));
 
 					break;
 				}
@@ -305,20 +306,30 @@ int main(int argc, char **argv)
 		}
 
 	}
-    
+
+
+    // while (!viewer.wasStopped())
+    // {    }
 	/*	*/
+
+	pcl::VoxelGrid<pcl::PointXYZ> sor;
+
+	// sor.setInputCloud(map);
+	// float resolution = 0.1f;
+	// sor.setLeafSize(resolution, resolution, resolution);
+	// sor.filter(*map);
+
 	std::string name;
 	name = work_dir + "optimized_map_full.pcd";
 	pcl::io::savePCDFile(name, *map);
 	cout << "path is :" << name << endl;
 
-	pcl::VoxelGrid<pcl::PointXYZ> sor;
-	sor.setInputCloud(map);
-	float resolution = 0.25f;
-	sor.setLeafSize(resolution, resolution, resolution);
-	sor.filter(*map);
-	name = work_dir  + "optimized_map_" +  std::to_string(resolution) + ".pcd";
-	pcl::io::savePCDFile(name, *map);
-	cout << "path is :" << name << endl;
+	// sor.setInputCloud(map);
+	// resolution = 0.2f;
+	// sor.setLeafSize(resolution, resolution, resolution);
+	// sor.filter(*map);
+	// name = work_dir  + "optimized_map_" +  std::to_string(resolution) + ".pcd";
+	// pcl::io::savePCDFile(name, *map);
+	// cout << "path is :" << name << endl;
 	return 0;
 }

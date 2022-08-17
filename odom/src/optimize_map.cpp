@@ -38,7 +38,7 @@ using namespace Eigen;
 geometry_msgs::PoseStamped to_PoseStamped(std::vector<double> v8)
 {
 	geometry_msgs::PoseStamped p;
-	p.header.stamp = ros::Time().fromSec(v8[0] / 1e9);
+	p.header.stamp = ros::Time().fromSec( v8[0] );
 	p.pose.position.x = v8[1];
 	p.pose.position.y = v8[2];
 	p.pose.position.z = v8[3];
@@ -81,7 +81,7 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	const char *delim = ",";
+	const char *delim = " ";
 	char buf[1024];
 
     // 获取 loop_path 的位姿
