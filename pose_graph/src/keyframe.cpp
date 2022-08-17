@@ -479,7 +479,6 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	    //cout << "pnp relative_yaw " << relative_yaw << endl;
 	    if (abs(relative_yaw) < 30.0 && relative_t.norm() < 20.0)
 	    {
-ROS_WARN(" has_loop = true ");
 	    	has_loop = true;
 	    	loop_index = old_kf->index;
 	    	loop_info << relative_t.x(), relative_t.y(), relative_t.z(),
@@ -490,7 +489,6 @@ ROS_WARN(" has_loop = true ");
 	    	{
 			    sensor_msgs::PointCloud msg_match_points;
 			    msg_match_points.header.stamp = ros::Time(time_stamp);
-ROS_WARN(" matched_2d_old_norm num : %d ", (int)matched_2d_old_norm.size() );
 			    for (int i = 0; i < (int)matched_2d_old_norm.size(); i++)
 			    {
 		            geometry_msgs::Point32 p;
@@ -513,13 +511,10 @@ ROS_WARN(" matched_2d_old_norm num : %d ", (int)matched_2d_old_norm.size() );
 			    t_q_index.values.push_back(index);
 			    msg_match_points.channels.push_back(t_q_index);
 			    pub_match_points.publish(msg_match_points);
-ROS_WARN(" pub_match_points = true ");
-
 	    	}
 	        return true;
 	    }
 	}
-	// ROS_ERROR("loop final use num %d %lf--------------- \n", (int)matched_2d_cur.size(), t_match.toc());
 	return false;
 }
 

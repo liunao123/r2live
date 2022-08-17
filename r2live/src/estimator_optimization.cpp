@@ -692,7 +692,25 @@ void Estimator::optimization_LM()
         m_vio_margin_ptr->m_tic[0] = tic[0];
         m_vio_margin_ptr->m_td = td;
     }
-std::cout << "ERROR, :" << __FILE__ << ". "  << __LINE__ << ". " << marginalization_flag << std::endl;
+    static int cnts = 0;
+    
+    static auto last_flag = 0;
+
+    if (marginalization_flag == last_flag)
+    {
+        cnts++;
+    }
+    else
+    {
+        if(last_flag == MARGIN_OLD )
+            ROS_WARN("MARGIN_OLD marginalization_flag times is: %d . ", cnts);
+        else
+            ROS_WARN("MARGIN_SECOND_NEW marginalization_flag times is: %d . ", cnts);
+
+        last_flag = marginalization_flag;
+        cnts = 1;
+    }
+
     if (marginalization_flag == MARGIN_OLD)
     {
 

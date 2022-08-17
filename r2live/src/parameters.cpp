@@ -66,7 +66,7 @@ void readParameters(ros::NodeHandle &n)
 
     std::string OUTPUT_PATH;
     fsSettings["output_path"] >> OUTPUT_PATH;
-    VINS_RESULT_PATH = OUTPUT_PATH + "/vins_result_no_loop.csv";
+    VINS_RESULT_PATH = OUTPUT_PATH + "/vins_result_no_loop.txt";
     
     std::cout << "result path " << VINS_RESULT_PATH << std::endl;
 

@@ -171,19 +171,21 @@ void pub_LiDAR_Odometry(const Estimator &estimator, const StatesGroup & state, c
         // write result to file
         ofstream foutC(VINS_RESULT_PATH, ios::app);
         foutC.setf(ios::fixed, ios::floatfield);
-        foutC.precision(0);
-        foutC << header.stamp.toSec() * 1e9 << ",";
+        foutC.precision(10);
+        foutC << header.stamp.toSec() << " ";
         foutC.precision(5);
-        foutC << estimator.Ps[WINDOW_SIZE].x() << ","
-              << estimator.Ps[WINDOW_SIZE].y() << ","
-              << estimator.Ps[WINDOW_SIZE].z() << ","
-              << tmp_Q.w() << ","
-              << tmp_Q.x() << ","
-              << tmp_Q.y() << ","
-              << tmp_Q.z() << ","
-              << estimator.Vs[WINDOW_SIZE].x() << ","
-              << estimator.Vs[WINDOW_SIZE].y() << ","
-              << estimator.Vs[WINDOW_SIZE].z() << endl;
+        foutC << estimator.Ps[WINDOW_SIZE].x() << " "
+              << estimator.Ps[WINDOW_SIZE].y() << " "
+              << estimator.Ps[WINDOW_SIZE].z() << " "
+              << tmp_Q.w() << " "
+              << tmp_Q.x() << " "
+              << tmp_Q.y() << " "
+              << tmp_Q.z()
+            //   << " "
+            //   << estimator.Vs[WINDOW_SIZE].x() << ","
+            //   << estimator.Vs[WINDOW_SIZE].y() << ","
+            //   << estimator.Vs[WINDOW_SIZE].z()
+              << endl;
         foutC.close();
     }
 }
@@ -242,8 +244,8 @@ void pubOdometry(const Estimator &estimator, const std_msgs::Header &header)
         // write result to file
         ofstream foutC(VINS_RESULT_PATH, ios::app);
         foutC.setf(ios::fixed, ios::floatfield);
-        foutC.precision(0);
-        foutC << header.stamp.toSec() * 1e9 << ",";
+        foutC.precision(10);
+        foutC << header.stamp.toSec()  << ",";
         foutC.precision(5);
         foutC << estimator.Ps[WINDOW_SIZE].x() << ","
               << estimator.Ps[WINDOW_SIZE].y() << ","
@@ -531,6 +533,29 @@ void pubRelocalization(const Estimator &estimator)
     odometry.pose.pose.orientation.w = estimator.relo_relative_q.w();
     odometry.twist.twist.linear.x = estimator.relo_relative_yaw;
     odometry.twist.twist.linear.y = estimator.relo_frame_index;
+
+    // 会覆盖已经有的文件
+    static ofstream  r2live_relo_txt("/home/map/r2live_relo_relative_pose.txt", ios::out);
+
+    // 往上面的文件里写 打开
+    ofstream  r2live_relo_relative_pose("/home/map/r2live_relo_relative_pose.txt", ios::app);
+
+     r2live_relo_relative_pose.setf(ios::fixed, ios::floatfield);
+     r2live_relo_relative_pose.precision(10);
+     r2live_relo_relative_pose << estimator.relo_frame_stamp   << " ";
+     r2live_relo_relative_pose.precision(5);
+
+     r2live_relo_relative_pose
+        << estimator.relo_relative_t.x() << " "
+        << estimator.relo_relative_t.y() << " "
+        << estimator.relo_relative_t.z() << " "
+        << estimator.relo_relative_q.w() << " "
+        << estimator.relo_relative_q.x() << " "
+        << estimator.relo_relative_q.y() << " "
+        << estimator.relo_relative_q.z() << endl;
+
+    // 把上面的文件 关闭
+     r2live_relo_relative_pose.close();
 
     pub_relo_relative_pose.publish(odometry);
 }
