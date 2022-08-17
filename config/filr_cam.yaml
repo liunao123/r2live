@@ -2,7 +2,7 @@
 
 imu_topic: "/livox/imu"
 image_topic: "/camera/image_color"
-output_path: "/root/Desktop/r2/"
+output_path: "/home/map/"
 
 #camera calibration 
 model_type: PINHOLE
@@ -91,7 +91,7 @@ keyframe_parallax: 10  # keyframe selection threshold (pixel)
 
 #imu parameters       The more accurate parameters you provide, the better performance
 acc_n: 2.0362832364835711e-02 #2.0558110444478399e-02          # accelerometer measurement noise standard deviation. #0.2
-gyr_n: 5.9356634372495680e-03 #2.8851885453467061e-03         # gyroscope measurement noise standard deviation.     #0.05
+gyr_n: 2.9356634372495680e-03 #2.8851885453467061e-03         # gyroscope measurement noise standard deviation.     #0.05
 acc_w: 3.8237464228441125e-04 #3.8550325711409205e-04         # accelerometer bias random work noise standard deviation.  #0.02
 gyr_w: 3.3184059394302349e-05 #3.0639709624135159e-05      # gyroscope bias random work noise standard deviation.     #4.0e-5
 g_norm: 9.79484       # gravity magnitude
@@ -102,7 +102,7 @@ g_norm: 9.79484       # gravity magnitude
 loop_closure: 1                    # start loop closure
 load_previous_pose_graph: 0        # load and reuse previous pose graph; load from 'pose_graph_save_path'
 fast_relocalization: 1             # useful in real-time and large project
-pose_graph_save_path: "/home/rxlive/vins/pose_graph_result/" # save and load path
+pose_graph_save_path: "/home/map/pose_graph_result/" # save and load path
 
 #unsynchronization parameters
 estimate_td: 1                      # online estimate time offset between camera and imu
