@@ -219,13 +219,7 @@ void restart_callback(const std_msgs::BoolConstPtr &restart_msg)
 
 void relocalization_callback(const sensor_msgs::PointCloudConstPtr &points_msg)
 {
-for(int i=0; i<100;i++)
-{
-
-    ROS_ERROR("-------------------------------\n");
-    std::cout << __FILE__ << __LINE__ << std::endl;
-    ROS_ERROR("detect_loop_closure , to relocalization callback! \n");
-}
+    ROS_WARN("detect_loop_closure , to relocalization callback! \n");
     m_buf.lock();
     relo_buf.push(points_msg);
     m_buf.unlock();
@@ -727,7 +721,7 @@ void process()
                         (t_add.norm() < 0.5) &&
                         (mean_reprojection_error < 1.0))
                     {
-std::cout << __FILE__ << "  enter : " << __LINE__ << std::endl;
+                        std::cout << __FILE__ << "  enter : update g_lio_state ." << __LINE__ << std::endl;
                         g_lio_state = state_aft_integration;
                         eigen_q q_I = eigen_q(1.0, 0, 0, 0);
                         double angular_diff = eigen_q(g_lio_state.rot_end.transpose() * state_before_esikf.rot_end).angularDistance(q_I) * 57.3;
