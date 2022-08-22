@@ -109,6 +109,18 @@ add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORT
 target_link_libraries (${src_file}  ${catkin_LIBRARIES} ${PCL_LIBRARIES})
 
 
+SET(src_file get_bds_by_two_odom)
+add_executable (${src_file} src/${src_file}.cpp )
+add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries (${src_file}  ${catkin_LIBRARIES} )
+
+
+SET(src_file optimize_map_tf)
+add_executable (${src_file} src/${src_file}.cpp )
+add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries (${src_file}  ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+
+
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
