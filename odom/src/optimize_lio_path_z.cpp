@@ -83,25 +83,15 @@ void scan_dir_get_filename(string path, vector<string> &filenames)
 geometry_msgs::PoseStamped to_PoseStamped(std::vector<double> v8)
 {
 	geometry_msgs::PoseStamped p;
-	p.header.stamp = ros::Time().fromSec( v8[0] );
-	p.header.frame_id = "world" ;
-
+	p.header.stamp = ros::Time().fromSec(v8[0]);
+	p.header.frame_id = "world";
 	p.pose.position.x = v8[1];
 	p.pose.position.y = v8[2];
 	p.pose.position.z = v8[3];
-	p.pose.orientation.w = v8[4];
-	p.pose.orientation.x = v8[5];
-	p.pose.orientation.y = v8[6];
-	p.pose.orientation.z = v8[7];
-    // cout << p.header.stamp << " ";
-	// 		for(int i=1;i<8;i++)
-	// 		{
-	// 			if(i == 7)
-	// 			    cout << v8[i] ;
-	// 			else
-	// 			    cout << v8[i] << " ";
-	// 		}
-   	//         cout << endl  ;
+	p.pose.orientation.x = v8[4];
+	p.pose.orientation.y = v8[5];
+	p.pose.orientation.z = v8[6];
+	p.pose.orientation.w = v8[7];
 	return p;
 }
 

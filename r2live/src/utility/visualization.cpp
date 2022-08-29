@@ -177,10 +177,10 @@ void pub_LiDAR_Odometry(const Estimator &estimator, const StatesGroup & state, c
         foutC << estimator.Ps[WINDOW_SIZE].x() << " "
               << estimator.Ps[WINDOW_SIZE].y() << " "
               << estimator.Ps[WINDOW_SIZE].z() << " "
-              << tmp_Q.w() << " "
               << tmp_Q.x() << " "
               << tmp_Q.y() << " "
-              << tmp_Q.z()
+              << tmp_Q.z() << " "
+              << tmp_Q.w() 
             //   << " "
             //   << estimator.Vs[WINDOW_SIZE].x() << ","
             //   << estimator.Vs[WINDOW_SIZE].y() << ","
@@ -247,16 +247,16 @@ void pubOdometry(const Estimator &estimator, const std_msgs::Header &header)
         foutC.precision(10);
         foutC << header.stamp.toSec()  << ",";
         foutC.precision(5);
-        foutC << estimator.Ps[WINDOW_SIZE].x() << ","
-              << estimator.Ps[WINDOW_SIZE].y() << ","
-              << estimator.Ps[WINDOW_SIZE].z() << ","
-              << tmp_Q.w() << ","
-              << tmp_Q.x() << ","
-              << tmp_Q.y() << ","
-              << tmp_Q.z() << ","
-              << estimator.Vs[WINDOW_SIZE].x() << ","
-              << estimator.Vs[WINDOW_SIZE].y() << ","
-              << estimator.Vs[WINDOW_SIZE].z() << endl;
+        foutC << estimator.Ps[WINDOW_SIZE].x() << " "
+              << estimator.Ps[WINDOW_SIZE].y() << " "
+              << estimator.Ps[WINDOW_SIZE].z() << " "
+              << tmp_Q.x() << " "
+              << tmp_Q.y() << " "
+              << tmp_Q.z() << " "
+              << tmp_Q.w() << endl;
+            //   << estimator.Vs[WINDOW_SIZE].x() << ","
+            //   << estimator.Vs[WINDOW_SIZE].y() << ","
+            //   << estimator.Vs[WINDOW_SIZE].z() << endl;
         foutC.close();
     }
 }
@@ -549,10 +549,10 @@ void pubRelocalization(const Estimator &estimator)
         << estimator.relo_relative_t.x() << " "
         << estimator.relo_relative_t.y() << " "
         << estimator.relo_relative_t.z() << " "
-        << estimator.relo_relative_q.w() << " "
         << estimator.relo_relative_q.x() << " "
         << estimator.relo_relative_q.y() << " "
-        << estimator.relo_relative_q.z() << endl;
+        << estimator.relo_relative_q.z() << " "
+        << estimator.relo_relative_q.w() << endl;
 
     // 把上面的文件 关闭
      r2live_relo_relative_pose.close();

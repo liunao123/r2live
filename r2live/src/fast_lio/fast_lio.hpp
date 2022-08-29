@@ -1531,14 +1531,14 @@ public:
                 
                 Eigen::Quaterniond qua(g_lio_state.rot_end);
 
-                lio_path_file  
+                lio_path_file
                   << g_lio_state.pos_end.x() << " "
                   << g_lio_state.pos_end.y() << " "
                   << g_lio_state.pos_end.z() << " "
-                  << qua.w() << " "
                   << qua.x() << " "
                   << qua.y() << " "
-                  << qua.z() << endl;
+                  << qua.z() << " "
+                  << qua.w() << endl;
                 // lio_path_file.close();
 
 
