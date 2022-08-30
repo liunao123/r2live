@@ -110,3 +110,11 @@ big IMU acc bias estimation
 
 3、把fast_lio里面的位姿和点云也保存下来，然后只优化这个位姿的 Z 值，实现上述1和2。
 4、common_lib.h里面关于 Lidar_offset_to_IMU 变量，需要注意。而且代码里面与官网提供的不一样。
+
+20220829
+测试发现 image 与 IMU的时间差，影响较大。应该先通过在线估计的形式，得到一个较好的 初始值。
+然后将该初始值 再让其 在线估计，直到该数据稳定。
+
+#unsynchronization parameters
+estimate_td: 1                      # online estimate time offset between camera and imu
+td: -0.02                             # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)

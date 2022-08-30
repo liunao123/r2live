@@ -162,6 +162,29 @@ void pub_LiDAR_Odometry(const Estimator &estimator, const StatesGroup & state, c
         odometry.pose.pose.orientation.z = correct_q.z();
         odometry.pose.pose.orientation.w = correct_q.w();
 
+    // 会覆盖已经有的文件
+    static ofstream  r2live_relo_txt("/home/map/r2live_relo_relative_pose.txt", ios::out);
+
+    // 往上面的文件里写 打开
+    ofstream  r2live_relo_relative_pose("/home/map/r2live_relo_relative_pose.txt", ios::app);
+
+     r2live_relo_relative_pose.setf(ios::fixed, ios::floatfield);
+     r2live_relo_relative_pose.precision(10);
+     r2live_relo_relative_pose << header.stamp.toSec()   << " ";
+     r2live_relo_relative_pose.precision(5);
+
+     r2live_relo_relative_pose
+        << correct_t.x() << " "
+        << correct_t.y() << " "
+        << correct_t.z() << " "
+        << correct_q.x() << " "
+        << correct_q.y() << " "
+        << correct_q.z() << " "
+        << correct_q.w() << endl;
+
+    // 把上面的文件 关闭
+     r2live_relo_relative_pose.close();
+
         pose_stamped.pose = odometry.pose.pose;
         relo_path.header = header;
         relo_path.header.frame_id = "world";
@@ -534,28 +557,28 @@ void pubRelocalization(const Estimator &estimator)
     odometry.twist.twist.linear.x = estimator.relo_relative_yaw;
     odometry.twist.twist.linear.y = estimator.relo_frame_index;
 
-    // 会覆盖已经有的文件
-    static ofstream  r2live_relo_txt("/home/map/r2live_relo_relative_pose.txt", ios::out);
+    // // 会覆盖已经有的文件
+    // static ofstream  r2live_relo_txt("/home/map/r2live_relo_relative_pose.txt", ios::out);
 
-    // 往上面的文件里写 打开
-    ofstream  r2live_relo_relative_pose("/home/map/r2live_relo_relative_pose.txt", ios::app);
+    // // 往上面的文件里写 打开
+    // ofstream  r2live_relo_relative_pose("/home/map/r2live_relo_relative_pose.txt", ios::app);
 
-     r2live_relo_relative_pose.setf(ios::fixed, ios::floatfield);
-     r2live_relo_relative_pose.precision(10);
-     r2live_relo_relative_pose << estimator.relo_frame_stamp   << " ";
-     r2live_relo_relative_pose.precision(5);
+    //  r2live_relo_relative_pose.setf(ios::fixed, ios::floatfield);
+    //  r2live_relo_relative_pose.precision(10);
+    //  r2live_relo_relative_pose << estimator.relo_frame_stamp   << " ";
+    //  r2live_relo_relative_pose.precision(5);
 
-     r2live_relo_relative_pose
-        << estimator.relo_relative_t.x() << " "
-        << estimator.relo_relative_t.y() << " "
-        << estimator.relo_relative_t.z() << " "
-        << estimator.relo_relative_q.x() << " "
-        << estimator.relo_relative_q.y() << " "
-        << estimator.relo_relative_q.z() << " "
-        << estimator.relo_relative_q.w() << endl;
+    //  r2live_relo_relative_pose
+    //     << estimator.relo_relative_t.x() << " "
+    //     << estimator.relo_relative_t.y() << " "
+    //     << estimator.relo_relative_t.z() << " "
+    //     << estimator.relo_relative_q.x() << " "
+    //     << estimator.relo_relative_q.y() << " "
+    //     << estimator.relo_relative_q.z() << " "
+    //     << estimator.relo_relative_q.w() << endl;
 
-    // 把上面的文件 关闭
-     r2live_relo_relative_pose.close();
+    // // 把上面的文件 关闭
+    //  r2live_relo_relative_pose.close();
 
     pub_relo_relative_pose.publish(odometry);
 }
