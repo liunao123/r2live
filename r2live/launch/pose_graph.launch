@@ -6,8 +6,8 @@
         <param name="config_file" type="string" value="$(arg config_path)" />
         <param name="visualization_shift_x" type="int" value="0" />
         <param name="visualization_shift_y" type="int" value="0" />
-        <param name="skip_cnt" type="int" value="0" />
-        <param name="skip_dis" type="double" value="0" />
+        <param name="skip_cnt" type="int" value="3" />
+        <param name="skip_dis" type="double" value="2" />
     </node>
 
 </launch>

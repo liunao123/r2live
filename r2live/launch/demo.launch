@@ -28,12 +28,12 @@
         
   <node pkg="r2live" type="save_registered_cloud" name="save_registered_cloud"  output="log"/>
  
-  <!-- <node pkg="rosbag" type="play" name="player"  output="screen"  output="log" args="/home/0805.bag -s 180  -duration 800 -clock"/> -->
+  <!-- <node pkg="rosbag" type="play" name="player"  output="screen"    args="/home/0805.bag -s 180  -duration 800 -clock"/> -->
   <!-- <node pkg="rosbag" type="play" name="player"  output="screen" args="/home/0805.bag -s 930  -clock -duration 790 "/> -->
 
   <!-- <node pkg="rosbag" type="play" name="player"  output="screen" args="/home/0805.bag -s 700   "/> -->
 
-  <node pkg="rosbag" type="play" name="player"  output="screen" args="/home/0808.bag -s 650 "/>
+  <!-- <node pkg="rosbag" type="play" name="player"  output="screen" args="/home/0817.bag -s 110 -duration 350"/> -->
 
 
     <arg name="rviz" default="1" />
