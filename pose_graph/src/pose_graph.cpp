@@ -81,7 +81,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
         {
             // 把回环对应的 时间戳记录下来
             std::string loop_time_name(VINS_RESULT_PATH);
-            loop_time_name.insert(loop_time_name.length() - 4, "_loop_time");
+            loop_time_name.insert(loop_time_name.length() - 4, "_time");
             
             static ofstream loop_time(loop_time_name, ios::out);
             loop_time.open(loop_time_name, ios::app);

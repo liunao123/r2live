@@ -1520,6 +1520,17 @@ public:
             
                 std::string filename = "/home/map/pcd_lidar/" + ss.str() + ".pcd" ;
                 // ROS_WARN("save pcd file : %s, name<time> is %f .", filename.c_str(), Measures.lidar_end_time);
+
+                            // PointCloudXYZI::Ptr temp;
+                            // temp = boost::make_shared<PointCloudXYZI>();
+                            // pcl::copyPointCloud(*laserCloudFullResColor, *temp); //复制
+
+                            //ROS_WARN("size of map <before filter >: %d ", temp->width * temp->height); 
+                            pcl::RandomSample<PointType> rand_filter;
+                            rand_filter.setSample(4000);
+                            rand_filter.setInputCloud(laserCloudFullRes2);
+                            rand_filter.filter(*laserCloudFullRes2);
+                            
                 pcl::io::savePCDFile (  filename , *laserCloudFullRes2);
 
                 // ofstream lio_path_file("/home/map/lio_path.txt", ios::app);
