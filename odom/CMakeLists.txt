@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0.2)
 project(odom)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++14)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -16,24 +16,19 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(Eigen3 REQUIRED)
 
+find_package(GTSAM REQUIRED)
 
 find_package(PCL 1.8 REQUIRED )
 
 INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
 
-include_directories(SYSTEM)
 
-
-include_directories(
-# include
-  ${catkin_INCLUDE_DIRS}
-  ${PCL_INCLUDE_DIRS}
-  ${Boost_INCLUDE_DIRS}
-  # "/usr/include/eigen3"
+link_directories(
+	include
+	${PCL_LIBRARY_DIRS}
+	${GTSAM_LIBRARY_DIRS}
 )
 
-
-link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
 ###################################
@@ -59,8 +54,13 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
+  include
   ${catkin_INCLUDE_DIRS}
+	${GTSAM_INCLUDE_DIR}
+  SYSTEM
+  ${PCL_INCLUDE_DIRS}
+  ${Boost_INCLUDE_DIRS}
+  # "/usr/include/eigen3"
 )
 
 ## Declare a C++ library
@@ -85,40 +85,50 @@ include_directories(
 # set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
 
 
-# add_executable(pub_odom src/pub_odom.cpp)
-# add_dependencies(pub_odom ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-# target_link_libraries(pub_odom
-#   ${catkin_LIBRARIES}
-# )
-
-# SET(src_file change_odom)
-# add_executable (${src_file} src/${src_file}.cpp )
-# add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-# target_link_libraries (${src_file}  ${catkin_LIBRARIES})
-
-
 SET(src_file optimize_map)
 add_executable (${src_file} src/${src_file}.cpp )
 add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries (${src_file}  ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+target_link_libraries (${src_file}  ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
 
 
-SET(src_file optimize_lio_path_z)
-add_executable (${src_file} src/${src_file}.cpp )
+# SET(src_file optimize_lio_path_z)
+# add_executable (${src_file} src/${src_file}.cpp )
+# add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# target_link_libraries (${src_file}  ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+
+
+# SET(src_file get_bds_by_two_odom)
+# add_executable (${src_file} src/${src_file}.cpp )
+# add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# target_link_libraries (${src_file}  ${catkin_LIBRARIES} )
+
+
+# SET(src_file optimize_map_tf)
+# add_executable (${src_file} src/${src_file}.cpp )
+# add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# target_link_libraries (${src_file}  ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+
+
+# SET(src_file optimize_map_gtsam)
+# add_executable (${src_file} src/${src_file}.cpp src/LaserLoopClosure.cc)
+# add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${GTSAM_LIBRARY_DIRS} libzlog.a)
+
+
+SET(src_file optimize_map_gtsam_time)
+add_executable (${src_file} src/${src_file}.cpp src/LaserLoopClosure_time.cc)
 add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries (${src_file}  ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${GTSAM_LIBRARY_DIRS} libzlog.a)
 
 
-SET(src_file get_bds_by_two_odom)
-add_executable (${src_file} src/${src_file}.cpp )
+SET(src_file optimize_map_gtsam_time_all_pc)
+add_executable (${src_file} src/${src_file}.cpp src/LaserLoopClosure_time.cc)
 add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries (${src_file}  ${catkin_LIBRARIES} )
+target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${GTSAM_LIBRARY_DIRS} libzlog.a)
 
 
-SET(src_file optimize_map_tf)
-add_executable (${src_file} src/${src_file}.cpp )
-add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries (${src_file}  ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+message(STATUS "------------gtsam :${gtsam}")
+message(STATUS "------------gtsam 2222 : ${GTSAM_LIBRARY_DIRS}")
 
 
 ## Add cmake target dependencies of the executable
