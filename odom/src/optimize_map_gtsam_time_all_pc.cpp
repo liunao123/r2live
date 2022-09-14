@@ -112,7 +112,7 @@ int main(int argc, char **argv)
 
 	// std::string work_dir = "/home/map/0805-less-drift/";
 	// std::string work_dir = "/home/map/0817_0826/";
-	std::string work_dir = "/home/map/0817-time-loop/";
+	std::string work_dir = "/home/map/0908/";
 
 	if (argc > 1)
 	{
@@ -159,7 +159,7 @@ int main(int argc, char **argv)
 	scan_dir_get_filename(work_dir + "pcd_lidar/", pcd_file);
 
 	// 获取 视觉回环的时间
-	ifstream loop_time_file(work_dir + "vins_result_loop_time", ios::in);
+	ifstream loop_time_file(work_dir + "vins_result_loop_time.txt", ios::in);
 	if (!loop_time_file.is_open())
 	{
 		std::cout << " 读取文件失败 " << __LINE__ << std::endl;
@@ -179,7 +179,7 @@ int main(int argc, char **argv)
 		std::pair<double, double> pair_temp(f, s);
 
 		// 两个视觉回环 视觉 相隔 大于 5秒，才加进去一个
-		if ( fabs( f - last_loop_time ) > 5.0 )
+		if ( fabs( f - last_loop_time ) > 3.0 )
 		{
 			loop_time.push_back(pair_temp);
             last_loop_time = f;
@@ -188,11 +188,10 @@ int main(int argc, char **argv)
 	}
 	loop_time_file.close();
 
-	for (int i = 0; i < loop_time.size(); i ++)
-	{
-		std::cout <<  setiosflags(ios::fixed) << loop_time[i].first << " " << loop_time[i].second << std::endl;
-
-	}
+	// for (int i = 0; i < loop_time.size(); i ++)
+	// {
+	// 	std::cout <<  setiosflags(ios::fixed) << loop_time[i].first << " " << loop_time[i].second << std::endl;
+	// }
 
 	// return 0;
 
@@ -201,6 +200,7 @@ int main(int argc, char **argv)
 	llc.Initialize();
 	// 把视觉回环的时间放进去
 	llc.setVisionLoopTime(loop_time);
+	llc.setWorkPath(work_dir);
 
 	ROS_INFO("sssssssss");
 
@@ -208,7 +208,8 @@ int main(int argc, char **argv)
 	int cnts = 0;
 	int keyframe_cnts = 0;
 
-	for (int i = 50; i < pcd_file.size() - 500; i += step_len)
+	for (int i = 2; i <  pcd_file.size() - 1600 ; i += step_len)
+	// for (int i = 2; i <  500 ; i += step_len)
 	{
 		auto pos_last_g = pcd_file[i].find_last_of("/") + 1;
 		auto pos_last_d = pcd_file[i].find_last_of(".") + 1;
@@ -237,10 +238,10 @@ int main(int argc, char **argv)
 		if (cloud->points.empty())
 			continue;
 
-		static const Eigen::Vector3d Lidar_offset_to_IMU_temp(0.05512, 0.02226, 0.0297); // Horizon r2live
+		// static const Eigen::Vector3d Lidar_offset_to_IMU_temp(0.05512, 0.02226, 0.0297); // Horizon r2live
 		// 官方 https://livox-wiki-cn.readthedocs.io/zh_CN/latest/introduction/Point_Cloud_Characteristics_and_Coordinate_System%20.html#id2
 		// static const Eigen::Vector3d Lidar_offset_to_IMU_temp(-0.0847, -0.0425, -0.0353); // -84.7，-42.5，-35.3 // one
-		// static const Eigen::Vector3d Lidar_offset_to_IMU_temp(0.0847, 0.0425, 0.0353); // -84.7，-42.5，-35.3 // two
+		static const Eigen::Vector3d Lidar_offset_to_IMU_temp(0.0847, 0.0425, 0.0353); // -84.7，-42.5，-35.3 // two
 		// static const Eigen::Vector3d Lidar_offset_to_IMU_temp(0.05512, 0.02226, 0.0297); // Horizon r2live three
 		//    static const Eigen::Vector3d Lidar_offset_to_IMU_temp(-0.05512, -0.02226, -0.0297); // Horizon r2live four
 		//    static const Eigen::Vector3d Lidar_offset_to_IMU_temp(0.0, 0.0, 0.0); //  zero
@@ -346,7 +347,7 @@ int main(int argc, char **argv)
 			r2live_relo_relative_pose.close();
 
 			// 抽样 显示
-			if (keyframe_cnts % 5 != 0)
+			if (keyframe_cnts % 20 != 0)
 				continue;
 
 			cout << keyframe_cnts << "th keyframe_cnts  : " << i << "th pointclouds " << endl;
@@ -376,10 +377,9 @@ int main(int argc, char **argv)
 	std::cout << "Your work  is DOEN .pointcloud cnts is : " << cnts << std::endl;
 	cout << "keyframe_cnts is : " << keyframe_cnts << endl;
 
-	std::string name;
-	name = work_dir + "keyframe_point_original.pcd";
-	pcl::io::savePCDFile(name, *map);
-	cout << "path is :" << name << endl;
+	std::string name = work_dir + "keyframe_point_original.pcd";
+	// pcl::io::savePCDFile(name, *map);
+	// cout << "path is :" << name << endl;
 
 	llc.saveGtsam2G2oFile(work_dir + "loop_gtsam_original.g2o");
 

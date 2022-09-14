@@ -109,7 +109,7 @@ int main(int argc, char **argv)
 	// ros::NodeHandle nh;
 	// std::string work_dir = "/home/map/0805-less-drift/";
 	// std::string work_dir = "/home/map/0817_0826/";
-	std::string work_dir = "/home/map/0817-time-loop/";
+	std::string work_dir = "/home/map/0908_2210s/";
 	
 	if (argc > 1)
 	{
@@ -122,7 +122,7 @@ int main(int argc, char **argv)
 
 	if (!infile_loop_path.is_open())
 	{
-		std::cout << "124 读取文件失败" << std::endl;
+		std::cout << __LINE__ << " 读取文件失败" << std::endl;
 		return 0;
 	}
 
@@ -135,7 +135,7 @@ int main(int argc, char **argv)
 	// infile_lio.open(work_dir + "lio_optimized_path.txt", ios::in);
 	if (!infile_lio.is_open())
 	{
-		std::cout << "156 读取文件失败" << std::endl;
+		std::cout << __LINE__ << " 读取文件失败" << std::endl;
 		return 0;
 	}
 	std::vector<geometry_msgs::PoseStamped> lio_pose;
@@ -165,7 +165,7 @@ int main(int argc, char **argv)
 
 
 	// 获取 视觉回环的时间
-	ifstream loop_time_file(work_dir + "vins_result_loop_time.time", ios::in);
+	ifstream loop_time_file(work_dir + "vins_result_loop_time.txt", ios::in);
 	if (!loop_time_file.is_open())
 	{
 		std::cout << "156 读取文件失败" << std::endl;
@@ -185,7 +185,7 @@ int main(int argc, char **argv)
 		std::pair<double, double> pair_temp(f, s);
 
 		// 两个视觉回环 视觉 相隔 大于 5秒，才加进去一个
-		if ( fabs( f - last_loop_time ) > 3.0 )
+		if ( fabs( f - last_loop_time ) > 5.0 )
 		{
 			loop_time.push_back(pair_temp);
             last_loop_time = f;
@@ -203,14 +203,15 @@ int main(int argc, char **argv)
 	llc.Initialize();
 	// 把视觉回环的时间放进去
 	llc.setVisionLoopTime(loop_time);
-
+	llc.setWorkPath(work_dir);
 
 	// 跳过中间没有回环的部分，直接看回环部分的点云
-	// 0817
-	const int jump_start = 6000;
-	// const int jump_end = pcd_file.size() - 2000;
-	const int jump_end = 9000;
+	// 0908
+	//  int jump_start = 3000;
+	//  int jump_end = 12500;
 
+	int jump_start = 4600 ;
+	int jump_end = 8400;
 
 	// 0805
 	// const int jump_start = 600;
@@ -222,13 +223,51 @@ int main(int argc, char **argv)
 	int keyframe_cnts = 0;
 	bool jump = false;
 
-	for (int i = 10; i <  pcd_file.size() - 3000; i += step_len)
+	// for (int i = 2000; i <  pcd_file.size() - 3000; i += step_len)
+	// for (int i = 1800; i < 13500; i += step_len)
+	for (int i = 2; i < 17900; i += step_len)
 	{
 		geometry_utils::Transform3 pose_jump;
 
-		if ( i > jump_start && i < jump_start + 100)
+		if ( i > jump_start && i < jump_start + 100  )
 		{
 			i = jump_end;
+	        jump = true;
+
+	    	gu::Vector3Base<double> posi_jump(lio_pose[jump_start].pose.position.x,
+	    								   lio_pose[jump_start].pose.position.y,
+	    								   lio_pose[jump_start].pose.position.z);
+	    	gu::Rotation3Base<double> ori_jump(gu::QuaternionBase<double>(lio_pose[jump_start].pose.orientation.w,
+	    															   lio_pose[ jump_start ].pose.orientation.x,
+	    															   lio_pose[ jump_start ].pose.orientation.y,
+	    															   lio_pose[ jump_start ].pose.orientation.z));
+	    	geometry_utils::Transform3 pose_jump_temp(posi_jump, ori_jump);
+	    	pose_jump = pose_jump_temp;
+		}
+
+    	const int jump_start_2 = 9600 ;
+		if ( i > jump_start_2 && i < jump_start_2 + 100 ) 
+		{   
+			jump_start = jump_start_2;
+			i = 12900;
+	        jump = true;
+
+	    	gu::Vector3Base<double> posi_jump(lio_pose[jump_start].pose.position.x,
+	    								   lio_pose[jump_start].pose.position.y,
+	    								   lio_pose[jump_start].pose.position.z);
+	    	gu::Rotation3Base<double> ori_jump(gu::QuaternionBase<double>(lio_pose[jump_start].pose.orientation.w,
+	    															   lio_pose[ jump_start ].pose.orientation.x,
+	    															   lio_pose[ jump_start ].pose.orientation.y,
+	    															   lio_pose[ jump_start ].pose.orientation.z));
+	    	geometry_utils::Transform3 pose_jump_temp(posi_jump, ori_jump);
+	    	pose_jump = pose_jump_temp;
+		}
+
+		const int jump_start_3 = 13500 ;
+		if ( i > jump_start_3 && i < jump_start_3 + 100 ) 
+		{   
+			jump_start = jump_start_3;
+			i = 16600;
 	        jump = true;
 
 	    	gu::Vector3Base<double> posi_jump(lio_pose[jump_start].pose.position.x,
@@ -386,12 +425,8 @@ int main(int argc, char **argv)
 			// 把上面的文件 关闭
 			r2live_relo_relative_pose.close();
 
-			// if (keyframe_cnts % 3 != 0)
-			// {
-			// 	continue;
-			// }
-
 			cout << keyframe_cnts << "th keyframe_cnts  : " << i << "th pointclouds " << endl;
+			dzlog_info("%dth keyframe_cnts, %dth pointclouds.", keyframe_cnts, i);
 			// 抽样 显示
 			if (keyframe_cnts % 10 != 0)
 				continue;
