@@ -97,17 +97,17 @@ void LaserLoopClosure::filter_pointcloud(PointCloud &pc)
 {
     // std::cout << __FILE__ << ":" << __LINE__ << "pc size befer filter : " << pc.points.size() << std::endl;
 
-    pcl::RadiusOutlierRemoval<pcl::PointXYZ> outrem;
-    outrem.setInputCloud(pc.makeShared());
-    outrem.setRadiusSearch(2);
-    outrem.setMinNeighborsInRadius(2); // 150
-    // apply filter
-    outrem.filter(pc);
+    // pcl::RadiusOutlierRemoval<pcl::PointXYZ> outrem;
+    // outrem.setInputCloud(pc.makeShared());
+    // outrem.setRadiusSearch(1);
+    // outrem.setMinNeighborsInRadius(2); // 150
+    // // apply filter
+    // outrem.filter(pc);
 
     // downsample clouds
     pcl::VoxelGrid<pcl::PointXYZ> vg;
     vg.setInputCloud(pc.makeShared());
-    vg.setLeafSize(0.2f, 0.2f, 0.2f);
+    vg.setLeafSize(0.1f, 0.1f, 0.1f);
     vg.filter(pc);
     // std::cout << __FILE__ << ":" << __LINE__ << "pc size fater filter : " << pc.points.size() << std::endl;
 }
@@ -132,11 +132,11 @@ bool LaserLoopClosure::LoadParameters()
 
     // Load loop closing parameters.
     translation_threshold_ = 0.5; // 0.25
-    proximity_threshold_ = 10;     // 10
-    max_tolerable_fitness_ = 0.6; // 0.36; 不要太高，否则错误的约束加到GTSAM里面后，无法优化出结果
+    proximity_threshold_ = 15;     // 10
+    max_tolerable_fitness_ = 0.48; // 0.36; 不要太高< 大于1 就不行>，否则错误的约束加到GTSAM里面后，无法优化出结果
     skip_recent_poses_ = 10;       // 20
     poses_before_reclosing_ = 10;
-    maxLoopKeysYawM = 1.0; // 1.05;
+    maxLoopKeysYawM = 0.5; // 1.05;
     // if (!pu::Get("loop_closure/translation_threshold", translation_threshold_)) return false;
     // if (!pu::Get("loop_closure/proximity_threshold", proximity_threshold_)) return false;
     // if (!pu::Get("loop_closure/max_tolerable_fitness", max_tolerable_fitness_)) return false;
@@ -147,7 +147,7 @@ bool LaserLoopClosure::LoadParameters()
 
     // Load ICP parameters.
     icp_tf_epsilon_ = 0.0000000001;
-    icp_corr_dist_ = 0.35;
+    icp_corr_dist_ = 0.25;
     icp_iterations_ = 30;
     // if (!pu::Get("icp/tf_epsilon", icp_tf_epsilon_)) return false;
     // if (!pu::Get("icp/corr_dist", icp_corr_dist_)) return false;
@@ -243,6 +243,12 @@ void LaserLoopClosure::GetMaximumLikelihoodPoints(PointCloud *points)
     {
         const unsigned int key = keyed_pose.key;
 
+        // int temp = int((1.0 * key) / (1.0 * key_) * 100);
+        if (key % 100 == 0)
+        {
+            // cout << "haved save " << temp << "% . " << endl;
+            cout << "." ;
+        }
         // Check if this pose is a keyframe. If it's not, it won't have a scan
         // associated to it and we should continue.
         if (!keyed_scans_.count(key))
@@ -673,11 +679,11 @@ bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr &scan1,
     pcl::io::savePCDFile(name, scan1_filter);
 
     name = "/root/Desktop/r2/src/icp/_" + std::to_string(cnts) + "_unused_result.pcd";
-    // cout << "764 path is :" << name << endl;
+    cout << "764 path is :" << name << endl;
     pcl::io::savePCDFile(name, unused_result);
 
     cnts++;
-    dzlog_info(" end GICP . ");
+    // dzlog_info(" end GICP . ");
 
     return true;
 }
@@ -724,27 +730,28 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
         //
         if (key - other_key < skip_recent_poses_)
             break;
+            
+        const PointCloud::ConstPtr scan2 = keyed_scans_[other_key];
+        // 时间戳是不是在视觉回环的附近
+        // 2 就可以，在远的匹配得分就很高了
+        if (std::fabs(scan2->header.stamp - target_time) > detect_time_regional_ * 2)
+        {
+            continue;
+        }
 
         if ((difference.translation.Norm() < proximity_threshold_) &&
             (fabs(difference.rotation.Yaw()) < maxLoopKeysYawM))
         {
-            const PointCloud::ConstPtr scan2 = keyed_scans_[other_key];
-            // 时间戳是不是在视觉回环的附近
-            // 2 就可以，在远的匹配得分就很高了
-            if (std::fabs(scan2->header.stamp - target_time) > detect_time_regional_ * 2)
-            {
-                continue;
-            }
             // dzlog_info("@@@@@@ other_key= %u ,iKey = %u, key_cnts = %u . difference.translation.Norm() = %f . fabs(difference.rotation.Yaw()) = %f ."  ,other_key , key, getLastScanKey(),  difference.translation.Norm(), fabs( difference.rotation.Yaw()) );
 
-            dzlog_info(" this key scan stamp is %u. ", scan2->header.stamp);
+            // dzlog_info(" this key scan stamp is %u . ", scan2->header.stamp);
 
             gu::Transform3 deltaTemp;
             LaserLoopClosure::Mat66 covarianceTemp;
             double fitnessReturn;
             if (PerformICP(scan1, scan2, pose1, pose2, &deltaTemp, &covarianceTemp, &fitnessReturn))
             {
-                dzlog_info("detect target pointcloud, DO ICP OK, key is %u, stamp diff less %us with vision loop closure stamp .", other_key, detect_time_regional_);
+                dzlog_info("detect target pointcloud, DO ICP OK, key is %u, stamp diff less %lf s with vision loop closure stamp .", other_key, detect_time_regional_);
                 static int icp_ok_cnts = 1;
                 // 找到一个闭环位姿
                 if (fitnessReturn < fitnessMin)
@@ -878,7 +885,7 @@ void LaserLoopClosure::loopClosureThread()
         cout << "enter loop. Vision loop counts is : " << loop_time_.size() << " wait " << iKey << "s ." << endl;
     }
 
-    iKey = 50;
+    iKey = 10;
 
     int last_key_cnts = -1;
 

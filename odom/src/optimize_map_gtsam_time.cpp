@@ -109,7 +109,7 @@ int main(int argc, char **argv)
 	// ros::NodeHandle nh;
 	// std::string work_dir = "/home/map/0805-less-drift/";
 	// std::string work_dir = "/home/map/0817_0826/";
-	std::string work_dir = "/home/map/0908_2210s/";
+	std::string work_dir = "/home/map/0916_2000s/";
 	
 	if (argc > 1)
 	{
@@ -185,7 +185,7 @@ int main(int argc, char **argv)
 		std::pair<double, double> pair_temp(f, s);
 
 		// 两个视觉回环 视觉 相隔 大于 5秒，才加进去一个
-		if ( fabs( f - last_loop_time ) > 5.0 )
+		if ( fabs( f - last_loop_time ) > 1.0 )
 		{
 			loop_time.push_back(pair_temp);
             last_loop_time = f;
@@ -210,22 +210,22 @@ int main(int argc, char **argv)
 	//  int jump_start = 3000;
 	//  int jump_end = 12500;
 
-	int jump_start = 4600 ;
-	int jump_end = 8400;
+	int jump_start = std::stoi(argv[2]) ;
+	int jump_end = std::stoi(argv[3]) ;
 
 	// 0805
 	// const int jump_start = 600;
 	// const int jump_end = pcd_file.size() - 2500;
 	ROS_INFO("sssssssss");
 
-	const int step_len = 1;
+	const int step_len = 2;
 	int cnts = 0;
 	int keyframe_cnts = 0;
 	bool jump = false;
 
 	// for (int i = 2000; i <  pcd_file.size() - 3000; i += step_len)
-	// for (int i = 1800; i < 13500; i += step_len)
-	for (int i = 2; i < 17900; i += step_len)
+	for (int i = 0; i < 12800 ; i += step_len)
+	// for (int i = 2; i < 17900; i += step_len)
 	{
 		geometry_utils::Transform3 pose_jump;
 
@@ -245,41 +245,41 @@ int main(int argc, char **argv)
 	    	pose_jump = pose_jump_temp;
 		}
 
-    	const int jump_start_2 = 9600 ;
-		if ( i > jump_start_2 && i < jump_start_2 + 100 ) 
-		{   
-			jump_start = jump_start_2;
-			i = 12900;
-	        jump = true;
+    	// const int jump_start_2 = 9600 ;
+		// if ( i > jump_start_2 && i < jump_start_2 + 100 ) 
+		// {   
+		// 	jump_start = jump_start_2;
+		// 	i = 12900;
+	    //     jump = true;
 
-	    	gu::Vector3Base<double> posi_jump(lio_pose[jump_start].pose.position.x,
-	    								   lio_pose[jump_start].pose.position.y,
-	    								   lio_pose[jump_start].pose.position.z);
-	    	gu::Rotation3Base<double> ori_jump(gu::QuaternionBase<double>(lio_pose[jump_start].pose.orientation.w,
-	    															   lio_pose[ jump_start ].pose.orientation.x,
-	    															   lio_pose[ jump_start ].pose.orientation.y,
-	    															   lio_pose[ jump_start ].pose.orientation.z));
-	    	geometry_utils::Transform3 pose_jump_temp(posi_jump, ori_jump);
-	    	pose_jump = pose_jump_temp;
-		}
+	    // 	gu::Vector3Base<double> posi_jump(lio_pose[jump_start].pose.position.x,
+	    // 								   lio_pose[jump_start].pose.position.y,
+	    // 								   lio_pose[jump_start].pose.position.z);
+	    // 	gu::Rotation3Base<double> ori_jump(gu::QuaternionBase<double>(lio_pose[jump_start].pose.orientation.w,
+	    // 															   lio_pose[ jump_start ].pose.orientation.x,
+	    // 															   lio_pose[ jump_start ].pose.orientation.y,
+	    // 															   lio_pose[ jump_start ].pose.orientation.z));
+	    // 	geometry_utils::Transform3 pose_jump_temp(posi_jump, ori_jump);
+	    // 	pose_jump = pose_jump_temp;
+		// }
 
-		const int jump_start_3 = 13500 ;
-		if ( i > jump_start_3 && i < jump_start_3 + 100 ) 
-		{   
-			jump_start = jump_start_3;
-			i = 16600;
-	        jump = true;
+		// const int jump_start_3 = 13500 ;
+		// if ( i > jump_start_3 && i < jump_start_3 + 100 ) 
+		// {   
+		// 	jump_start = jump_start_3;
+		// 	i = 16600;
+	    //     jump = true;
 
-	    	gu::Vector3Base<double> posi_jump(lio_pose[jump_start].pose.position.x,
-	    								   lio_pose[jump_start].pose.position.y,
-	    								   lio_pose[jump_start].pose.position.z);
-	    	gu::Rotation3Base<double> ori_jump(gu::QuaternionBase<double>(lio_pose[jump_start].pose.orientation.w,
-	    															   lio_pose[ jump_start ].pose.orientation.x,
-	    															   lio_pose[ jump_start ].pose.orientation.y,
-	    															   lio_pose[ jump_start ].pose.orientation.z));
-	    	geometry_utils::Transform3 pose_jump_temp(posi_jump, ori_jump);
-	    	pose_jump = pose_jump_temp;
-		}
+	    // 	gu::Vector3Base<double> posi_jump(lio_pose[jump_start].pose.position.x,
+	    // 								   lio_pose[jump_start].pose.position.y,
+	    // 								   lio_pose[jump_start].pose.position.z);
+	    // 	gu::Rotation3Base<double> ori_jump(gu::QuaternionBase<double>(lio_pose[jump_start].pose.orientation.w,
+	    // 															   lio_pose[ jump_start ].pose.orientation.x,
+	    // 															   lio_pose[ jump_start ].pose.orientation.y,
+	    // 															   lio_pose[ jump_start ].pose.orientation.z));
+	    // 	geometry_utils::Transform3 pose_jump_temp(posi_jump, ori_jump);
+	    // 	pose_jump = pose_jump_temp;
+		// }
 
 		auto pos_last_g = pcd_file[i].find_last_of("/") + 1;
 		auto pos_last_d = pcd_file[i].find_last_of(".") + 1;
