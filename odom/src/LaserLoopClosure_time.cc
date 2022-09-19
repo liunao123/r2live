@@ -81,6 +81,12 @@ void LaserLoopClosure::setWorkPath(const std::string work_dir)
     cout << " work_dir_ is : " << work_dir_ << endl;
 }
 
+void LaserLoopClosure::setTranslationThreshold(const double translation_threshold)
+{
+    translation_threshold_ = translation_threshold;
+    cout << " Reset translation_threshold value,  now is : " << translation_threshold_ << endl;
+}
+
 bool LaserLoopClosure::Initialize()
 {
     //***create loopclosure thread***//
@@ -131,9 +137,9 @@ bool LaserLoopClosure::LoadParameters()
     // if (!pu::Get("loop_closure/relinearize_threshold", relinearize_threshold)) return false;
 
     // Load loop closing parameters.
-    translation_threshold_ = 0.5; // 0.25
-    proximity_threshold_ = 15;     // 10
-    max_tolerable_fitness_ = 0.48; // 0.36; 不要太高< 大于1 就不行>，否则错误的约束加到GTSAM里面后，无法优化出结果
+    translation_threshold_ = 0.4; // 0.25
+    proximity_threshold_ = 20;     // 10
+    max_tolerable_fitness_ = 0.42; // 0.36; 不要太高< less 0.5 >，否则错误的约束加到GTSAM里面后，无法优化出结果
     skip_recent_poses_ = 10;       // 20
     poses_before_reclosing_ = 10;
     maxLoopKeysYawM = 0.5; // 1.05;
@@ -244,10 +250,10 @@ void LaserLoopClosure::GetMaximumLikelihoodPoints(PointCloud *points)
         const unsigned int key = keyed_pose.key;
 
         // int temp = int((1.0 * key) / (1.0 * key_) * 100);
-        if (key % 100 == 0)
+        if (key % 10 == 0)
         {
             // cout << "haved save " << temp << "% . " << endl;
-            cout << "." ;
+            cout << ". " ;
         }
         // Check if this pose is a keyframe. If it's not, it won't have a scan
         // associated to it and we should continue.
@@ -664,6 +670,7 @@ bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr &scan1,
     // icp的结果
     static int cnts = 1;
     printf("%dth score %f \n", cnts, icp.getFitnessScore());
+
     cout << "icp rotation (deg) :" << endl
          << delta->rotation.GetEulerZYX() * 180 / M_PI << endl;
 
@@ -682,6 +689,7 @@ bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr &scan1,
     cout << "764 path is :" << name << endl;
     pcl::io::savePCDFile(name, unused_result);
 
+    dzlog_info("%dth score %f , file is %s ", cnts, icp.getFitnessScore(), name.c_str());
     cnts++;
     // dzlog_info(" end GICP . ");
 
@@ -751,7 +759,7 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
             double fitnessReturn;
             if (PerformICP(scan1, scan2, pose1, pose2, &deltaTemp, &covarianceTemp, &fitnessReturn))
             {
-                dzlog_info("detect target pointcloud, DO ICP OK, key is %u, stamp diff less %lf s with vision loop closure stamp .", other_key, detect_time_regional_);
+                dzlog_info("detect target pointcloud, DO GICP OK, key is %u, stamp diff<%lf> less 2*%lf s with vision loop closure stamp .", other_key, scan2->header.stamp - target_time,  detect_time_regional_);
                 static int icp_ok_cnts = 1;
                 // 找到一个闭环位姿
                 if (fitnessReturn < fitnessMin)
@@ -954,8 +962,11 @@ void LaserLoopClosure::loopClosureThread()
 
     bIsLoopThreadExitM = true;
     dzlog_info("@@@@@@ loopClosureThread() loop thread EXIT !!!");
-
+	saveMap();
+	saveGtsam2G2oFile(work_dir_ + "loop_gtsam_optimized.g2o");
     dzlog_info("-------------------------------------------------------------------------  ");
-    dzlog_info("------------press 's' and 'enter'to end main() and save result-----------  ");
+    dzlog_info("----------------save result finish ...... -------------");
+    printf("----------------save result finish ...... -------------\n");
+	dzlog_info("%s file. finish . ", __FILE__);
     dzlog_info("-------------------------------------------------------------------------  ");
 }

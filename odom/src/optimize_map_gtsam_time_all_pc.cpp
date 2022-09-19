@@ -106,6 +106,7 @@ int main(int argc, char **argv)
 		dzlog_info("@@@@@@ loopClosure init zlog success !!!");
 	}
 	std::cout << " Initialize initZlog...... " << std::endl;
+	dzlog_info("%s file. start . ", __FILE__);
 
 	// ros::init(argc, argv, "optimize_map_gtsam");
 	// ros::NodeHandle nh;
@@ -204,23 +205,43 @@ int main(int argc, char **argv)
 
 	ROS_INFO("sssssssss");
 
-	const int step_len = 2;
+	 int step_len = 2;
 	int cnts = 0;
 	int keyframe_cnts = 0;
 
-
 	int _start = 0 ;
 	int _end = 0 ;
+	if (argc == 3)
+	{
+		_start = std::stoi(argv[2]);
+	}
+
 	if (argc == 4)
 	{
 		_start = std::stoi(argv[2]);
-		_end =std::stoi(argv[3]) ;
+		_end =std::stoi(argv[3]);
 	}
 	// TODO 跳过前3000 再试试 20220916
+	ROS_INFO("s : %d , end : %d ", _start, _end );
 
 	for (int i =  _start ; i <  pcd_file.size() - _end; i += step_len)
 	// for (int i = 2; i <  500 ; i += step_len)
 	{
+		step_len = 2;
+    	llc.setTranslationThreshold(0.4);
+
+		if( i < 4500 && i > 3500)
+		{
+		    step_len = 1;
+			llc.setTranslationThreshold(0.2);
+		}
+
+		if( i < 14700 && i > 14000)
+		{
+		    step_len = 1;
+			llc.setTranslationThreshold(0.2);
+		}
+
 		auto pos_last_g = pcd_file[i].find_last_of("/") + 1;
 		auto pos_last_d = pcd_file[i].find_last_of(".") + 1;
 		// 从文件名字里，获取时间
@@ -317,6 +338,7 @@ int main(int argc, char **argv)
 		cloud->header.frame_id = lio_pose[i].header.frame_id;
 
 		if (llc.addPoseAndKeyScan(delta, cloud))
+		// if (1)
 		{
 			// cout << i << "th pcd : " << pcd_file[i] << "  " <<__LINE__ << endl;
 
@@ -357,7 +379,7 @@ int main(int argc, char **argv)
 			r2live_relo_relative_pose.close();
 
 			// 抽样 显示
-			if (keyframe_cnts % 100 != 0)
+			if (keyframe_cnts % 20 != 0)
 				continue;
 
 			cout << keyframe_cnts << "th keyframe_cnts  : " << i << "th pointclouds " << endl;
@@ -401,8 +423,8 @@ int main(int argc, char **argv)
 		char ch = getchar();
 		if ('s' == ch)
 		{
-			llc.saveMap();
-			llc.saveGtsam2G2oFile(work_dir + "loop_gtsam_optimized.g2o");
+			// llc.saveMap();
+			// llc.saveGtsam2G2oFile(work_dir + "loop_gtsam_optimized.g2o");
 			break;
 		}
 	}
