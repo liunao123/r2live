@@ -59,13 +59,26 @@ LaserLoopClosure::~LaserLoopClosure()
 
 void LaserLoopClosure::saveMap()
 {
+    cout << "start save map , waiting please ......" << endl;
     std::cout << __FILE__ << ":" << __LINE__ << "  loopClosure Check DONE, SAVE pointcloud map .  " << std::endl;
+
     PointCloud *points = new PointCloud();
     GetMaximumLikelihoodPoints(points); // points->makeShared()
 
     std::string name = work_dir_ + "optimized_map_gtsam.pcd";
     pcl::io::savePCDFile(name, *points);
     cout << "map path is :" << name << endl;
+
+    cout << "before filter size is :"  << points->points.size() << endl;
+    pcl::VoxelGrid<pcl::PointXYZ> downSizeFilterTempMap;
+    downSizeFilterTempMap.setLeafSize(0.3f , 0.3f, 0.3f);
+    downSizeFilterTempMap.setInputCloud((*points).makeShared());
+    downSizeFilterTempMap.filter(*points);
+    cout << "after filter size is :"  << points->points.size() << endl;
+    name = work_dir_ + "optimized_map_gtsam_3dm.pcd";
+    pcl::io::savePCDFile(name, *points);
+
+    cout << "save map ok, you can exit ......" << endl;
 }
 
 void LaserLoopClosure::setVisionLoopTime(const std::vector<std::pair<double, double>> &loop_time)
@@ -84,7 +97,7 @@ void LaserLoopClosure::setWorkPath(const std::string work_dir)
 void LaserLoopClosure::setTranslationThreshold(const double translation_threshold)
 {
     translation_threshold_ = translation_threshold;
-    cout << " Reset translation_threshold value,  now is : " << translation_threshold_ << endl;
+    // cout << " Reset translation_threshold value,  now is : " << translation_threshold_ << endl;
 }
 
 bool LaserLoopClosure::Initialize()
@@ -112,8 +125,8 @@ void LaserLoopClosure::filter_pointcloud(PointCloud &pc)
 
     // downsample clouds
     pcl::VoxelGrid<pcl::PointXYZ> vg;
-    vg.setInputCloud(pc.makeShared());
     vg.setLeafSize(0.1f, 0.1f, 0.1f);
+    vg.setInputCloud(pc.makeShared());
     vg.filter(pc);
     // std::cout << __FILE__ << ":" << __LINE__ << "pc size fater filter : " << pc.points.size() << std::endl;
 }
@@ -137,9 +150,9 @@ bool LaserLoopClosure::LoadParameters()
     // if (!pu::Get("loop_closure/relinearize_threshold", relinearize_threshold)) return false;
 
     // Load loop closing parameters.
-    translation_threshold_ = 0.4; // 0.25
-    proximity_threshold_ = 20;     // 10
-    max_tolerable_fitness_ = 0.42; // 0.36; 不要太高< less 0.5 >，否则错误的约束加到GTSAM里面后，无法优化出结果
+    translation_threshold_ = 0.5; // 0.25
+    proximity_threshold_ = 15;     // 10
+    max_tolerable_fitness_ = 0.36; // 0.36; 不要太高< less 0.5 >，否则错误的约束加到GTSAM里面后，无法优化出结果
     skip_recent_poses_ = 10;       // 20
     poses_before_reclosing_ = 10;
     maxLoopKeysYawM = 0.5; // 1.05;
@@ -235,6 +248,7 @@ void LaserLoopClosure::GetMaximumLikelihoodPoints(PointCloud *points)
     }
     points->points.clear();
     
+    cout << work_dir_ << endl;
     cout << "start save gtsam pose, graph.g2o, sth for interactive_slam. wait ...... " << endl;
 
     // 会覆盖已经有的文件
@@ -249,11 +263,11 @@ void LaserLoopClosure::GetMaximumLikelihoodPoints(PointCloud *points)
     {
         const unsigned int key = keyed_pose.key;
 
-        // int temp = int((1.0 * key) / (1.0 * key_) * 100);
-        if (key % 10 == 0)
+        // int temp = int();
+        if (key % 500 == 0)
         {
             // cout << "haved save " << temp << "% . " << endl;
-            cout << ". " ;
+            cout  << int ((1.0 * key) / (1.0 * key_) * 100) << "%. " ;
         }
         // Check if this pose is a keyframe. If it's not, it won't have a scan
         // associated to it and we should continue.
@@ -334,9 +348,6 @@ void LaserLoopClosure::GetMaximumLikelihoodPoints(PointCloud *points)
     saveGtsam2G2oFile(work_dir_ + "pose_graph/graph.g2o");
     // 把上面的文件 关闭
     GTSAM_pose.close();
-    dzlog_info( "save gtsam pose, graph.g2o, sth for interactive_slam ok exit......" );
-    cout << "save gtsam pose, graph.g2o, sth for interactive_slam ok exit......" << endl;
-
 
 }
 
@@ -617,15 +628,16 @@ bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr &scan1,
     icp.setRANSACIterations(50);
 
     // PointCloud LaserLoopClosure::filter_pointcloud(const PointCloud::ConstPtr pc)
-    PointCloud scan1_filter = *scan1;
-    PointCloud scan2_filter = *scan2;
-    filter_pointcloud(scan1_filter);
-    filter_pointcloud(scan2_filter);
-    icp.setInputSource(scan1_filter.makeShared()); // source
-    icp.setInputTarget(scan2_filter.makeShared());
 
-    // icp.setInputSource(scan1);  //source
-    // icp.setInputTarget(scan2);
+    // PointCloud scan1_filter = *scan1;
+    // PointCloud scan2_filter = *scan2;
+    // filter_pointcloud(scan1_filter);
+    // filter_pointcloud(scan2_filter);
+    // icp.setInputSource(scan1_filter.makeShared()); // source
+    // icp.setInputTarget(scan2_filter.makeShared());
+
+    icp.setInputSource(scan1);  //source
+    icp.setInputTarget(scan2);
 
     // Perform ICP.
     PointCloud unused_result;
@@ -677,13 +689,13 @@ bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr &scan1,
     std::string name;
     name = "/root/Desktop/r2/src/icp/_" + std::to_string(cnts) + "_scan2.pcd";
     // cout << "754 path is :" << name << endl;
-    // pcl::io::savePCDFile(name, *scan2);
-    pcl::io::savePCDFile(name, scan2_filter);
+    pcl::io::savePCDFile(name, *scan2);
+    // pcl::io::savePCDFile(name, scan2_filter);
 
     name = "/root/Desktop/r2/src/icp/_" + std::to_string(cnts) + "_scan1.pcd";
     // cout << "759 path is :" << name << endl;
-    // pcl::io::savePCDFile(name, *scan1);
-    pcl::io::savePCDFile(name, scan1_filter);
+    pcl::io::savePCDFile(name, *scan1);
+    // pcl::io::savePCDFile(name, scan1_filter);
 
     name = "/root/Desktop/r2/src/icp/_" + std::to_string(cnts) + "_unused_result.pcd";
     cout << "764 path is :" << name << endl;
@@ -742,7 +754,7 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
         const PointCloud::ConstPtr scan2 = keyed_scans_[other_key];
         // 时间戳是不是在视觉回环的附近
         // 2 就可以，在远的匹配得分就很高了
-        if (std::fabs(scan2->header.stamp - target_time) > detect_time_regional_ * 2)
+        if (std::fabs(scan2->header.stamp - target_time) > detect_time_regional_ )
         {
             continue;
         }
@@ -955,18 +967,17 @@ void LaserLoopClosure::loopClosureThread()
         }
         else
         {
-            // if ( iKey % 10 == 0 )
             dzlog_info(" no loop at this stamp %u......", iKey);
         }
     }
 
     bIsLoopThreadExitM = true;
-    dzlog_info("@@@@@@ loopClosureThread() loop thread EXIT !!!");
 	saveMap();
 	saveGtsam2G2oFile(work_dir_ + "loop_gtsam_optimized.g2o");
     dzlog_info("-------------------------------------------------------------------------  ");
     dzlog_info("----------------save result finish ...... -------------");
-    printf("----------------save result finish ...... -------------\n");
-	dzlog_info("%s file. finish . ", __FILE__);
     dzlog_info("-------------------------------------------------------------------------  ");
+    printf("----------------you can press 's' to end main -------------\n");
+    dzlog_info("@@@@@@ loopClosureThread() loop thread EXIT !!!");
+
 }

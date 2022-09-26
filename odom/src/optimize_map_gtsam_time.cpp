@@ -204,32 +204,45 @@ int main(int argc, char **argv)
 	// 把视觉回环的时间放进去
 	llc.setVisionLoopTime(loop_time);
 	llc.setWorkPath(work_dir);
+	
+	int _start = 0 ;
+	int _end = pcd_file.size() ;
+
+	int jump_start = pcd_file.size() + 100 ;
+	int jump_end =  0;
+
+	if (argc == 6)
+	{
+		_start = std::stoi(argv[2]);
+		_end =std::stoi(argv[3]);
+	    jump_start = std::stoi(argv[4]);
+	    jump_end = std::stoi(argv[5]);
+	}
 
 	// 跳过中间没有回环的部分，直接看回环部分的点云
 	// 0908
 	//  int jump_start = 3000;
 	//  int jump_end = 12500;
 
-	int jump_start = std::stoi(argv[2]) ;
-	int jump_end = std::stoi(argv[3]) ;
 
 	// 0805
 	// const int jump_start = 600;
 	// const int jump_end = pcd_file.size() - 2500;
 	ROS_INFO("sssssssss");
 
-	const int step_len = 2;
+	const int step_len = 1;
 	int cnts = 0;
 	int keyframe_cnts = 0;
 	bool jump = false;
 
-	// for (int i = 2000; i <  pcd_file.size() - 3000; i += step_len)
-	for (int i = 0; i < 12800 ; i += step_len)
+	// TODO 跳过前3000 再试试 20220916
+	for (int i =  _start ; i <  _end ; i += step_len)
+	// for (int i = 0; i < 12800 ; i += step_len)
 	// for (int i = 2; i < 17900; i += step_len)
 	{
 		geometry_utils::Transform3 pose_jump;
 
-		if ( i > jump_start && i < jump_start + 100  )
+		if ( i > jump_start && i < jump_end  )
 		{
 			i = jump_end;
 	        jump = true;
@@ -425,11 +438,13 @@ int main(int argc, char **argv)
 			// 把上面的文件 关闭
 			r2live_relo_relative_pose.close();
 
-			cout << keyframe_cnts << "th keyframe_cnts  : " << i << "th pointclouds " << endl;
-			dzlog_info("%dth keyframe_cnts, %dth pointclouds.", keyframe_cnts, i);
 			// 抽样 显示
 			if (keyframe_cnts % 10 != 0)
 				continue;
+			
+			cout << keyframe_cnts << "th keyframe_cnts  : " << i << "th pointclouds " << endl;
+			dzlog_info("%dth keyframe_cnts, %dth pointclouds.", keyframe_cnts, i);
+
 
 			PointCloud::Ptr transformed_cloud(new PointCloud);
 			transformed_cloud->points.resize(cloud->points.size());
@@ -469,8 +484,8 @@ int main(int argc, char **argv)
 		char ch = getchar();
 		if ('s' == ch)
 		{
-			llc.saveMap();
-			llc.saveGtsam2G2oFile(work_dir + "loop_gtsam_optimized.g2o");
+			// llc.saveMap();
+			// llc.saveGtsam2G2oFile(work_dir + "loop_gtsam_optimized.g2o");
 			break;
 		}
 	}

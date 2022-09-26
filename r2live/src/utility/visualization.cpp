@@ -72,10 +72,12 @@ void printStatistics(const Estimator &estimator, double t)
     for (int i = 0; i < NUM_OF_CAM; i++)
     {
         //ROS_DEBUG("calibration result for camera %d", i);
-        ROS_DEBUG_STREAM("extirnsic tic: " << estimator.tic[i].transpose());
-        ROS_DEBUG_STREAM("extrinsic ric: " << Utility::R2ypr(estimator.ric[i]).transpose());
+
         if (ESTIMATE_EXTRINSIC)
         {
+            ROS_WARN_STREAM("extirnsic tic: " << estimator.tic[i].transpose());
+            ROS_WARN_STREAM("extrinsic ric: " << Utility::R2ypr(estimator.ric[i]).transpose());
+
             cv::FileStorage fs(EX_CALIB_RESULT_PATH, cv::FileStorage::WRITE);
             Eigen::Matrix3d eigen_R;
             Eigen::Vector3d eigen_T;

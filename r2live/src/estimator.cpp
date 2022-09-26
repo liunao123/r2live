@@ -656,7 +656,10 @@ void Estimator::double2vector()
         dep(i) = m_para_Feature[i][0];
     f_manager.setDepth(dep);
     if (ESTIMATE_TD)
+    {
         td = m_para_Td[0][0];
+        ROS_WARN("ESTIMATE_TD is: %f ", td);
+    }
 
     // relative info between two loop frame
     if(relocalization_info)
