@@ -180,19 +180,14 @@ int main(int argc, char **argv)
 		std::pair<double, double> pair_temp(f, s);
 
 		// 两个视觉回环 视觉 相隔 大于 5秒，才加进去一个
-		if ( fabs( f - last_loop_time ) > 2.0 )
+		if ( fabs( f - last_loop_time ) > 1.0 )
 		{
 			loop_time.push_back(pair_temp);
             last_loop_time = f;
+		    std::cout <<  setiosflags(ios::fixed) << f << " " << s << std::endl;
 		}		
-		// std::cout <<  setiosflags(ios::fixed) << f << " " << s << std::endl;
 	}
 	loop_time_file.close();
-
-	// for (int i = 0; i < loop_time.size(); i ++)
-	// {
-	// 	std::cout <<  setiosflags(ios::fixed) << loop_time[i].first << " " << loop_time[i].second << std::endl;
-	// }
 
 	// return 0;
 
@@ -205,7 +200,7 @@ int main(int argc, char **argv)
 
 	ROS_INFO("sssssssss");
 
-	 int step_len = 2;
+	int step_len = 3;
 	int cnts = 0;
 	int keyframe_cnts = 0;
 
@@ -221,27 +216,42 @@ int main(int argc, char **argv)
 		_start = std::stoi(argv[2]);
 		_end =std::stoi(argv[3]);
 	}
-	// TODO 跳过前3000 再试试 20220916
+
 	ROS_INFO("s : %d , end : %d ", _start, _end );
+	const int step_long = 3;
+	const int step_short = 2;
 
+	srand(time(0));
 	for (int i =  _start ; i <  pcd_file.size() - _end; i += step_len)
-	// for (int i = 2; i <  500 ; i += step_len)
 	{
-		step_len = 2;
-    	llc.setTranslationThreshold(0.4);
+		// continue;
 
-		if( i < 4500 && i > 3500)
+    	// llc.setTranslationThreshold(0.5);
+/*
+		if( i < 5000 && i > 3800)
 		{
-		    step_len = 1;
-			llc.setTranslationThreshold(0.2);
+		    step_len = step_short;
+			llc.setTranslationThreshold(0.3);
 		}
 
-		if( i < 14700 && i > 14000)
+		if( i < 14500 && i > 14200)
 		{
-		    step_len = 1;
-			llc.setTranslationThreshold(0.2);
+		    step_len = step_short;
+			llc.setTranslationThreshold(0.3);
+		}
+ 
+		if( i < 2000 || i > 15000)
+		{
+		    step_len = step_short;
+			llc.setTranslationThreshold(0.3);
 		}
 
+		if( i < 12000 && i > 11000)
+		{
+		    step_len = step_short;
+			llc.setTranslationThreshold(0.3);
+		}
+ */
 		auto pos_last_g = pcd_file[i].find_last_of("/") + 1;
 		auto pos_last_d = pcd_file[i].find_last_of(".") + 1;
 		// 从文件名字里，获取时间
@@ -378,11 +388,15 @@ int main(int argc, char **argv)
 			// 把上面的文件 关闭
 			r2live_relo_relative_pose.close();
 
+			// 保证每次的step不一样，这样不会每次都用同样的点云。更合理一点
+		    step_len = rand()%3 + 2; //[4,5]
+    	    // ROS_INFO("step_len : %d .",step_len );
 			// 抽样 显示
-			if (keyframe_cnts % 20 != 0)
+			if (keyframe_cnts % 25 != 0)
 				continue;
 
-			cout << keyframe_cnts << "th keyframe_cnts  : " << i << "th pointclouds " << endl;
+			cout << keyframe_cnts << "th keyframe_cnts  : " << i << "th pointclouds " << "step_len: " << step_len <<  endl;
+			
 			dzlog_info("%dth keyframe_cnts, %dth pointclouds.", keyframe_cnts, i);
 
 			PointCloud::Ptr transformed_cloud(new PointCloud);
@@ -416,17 +430,17 @@ int main(int argc, char **argv)
 
 	llc.saveGtsam2G2oFile(work_dir + "loop_gtsam_original.g2o");
 
-	cout << "wait cmd (s is save map .) : "  << endl;
+	// cout << "wait cmd (s is save map .) : "  << endl;
 	while (1)
 	{
 		// 堵塞在这 等着 键盘的输入
-		char ch = getchar();
-		if ('s' == ch)
+		// char ch = getchar();
+		// if ('s' == ch)
+		if ( llc.getIsLoopThreadExit() )
 		{
-			// llc.saveMap();
-			// llc.saveGtsam2G2oFile(work_dir + "loop_gtsam_optimized.g2o");
 			break;
 		}
+		usleep(1000*1000);
 	}
 	cout << "--------------end----------------- "  << endl;
 

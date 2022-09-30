@@ -230,15 +230,13 @@ int main(int argc, char **argv)
 	// const int jump_end = pcd_file.size() - 2500;
 	ROS_INFO("sssssssss");
 
-	const int step_len = 1;
+	int step_len = 5;
 	int cnts = 0;
 	int keyframe_cnts = 0;
 	bool jump = false;
 
-	// TODO 跳过前3000 再试试 20220916
-	for (int i =  _start ; i <  _end ; i += step_len)
-	// for (int i = 0; i < 12800 ; i += step_len)
-	// for (int i = 2; i < 17900; i += step_len)
+	srand(time(0));
+	for (int i =  _start ; i <  pcd_file.size() - _end ; i += step_len)
 	{
 		geometry_utils::Transform3 pose_jump;
 
@@ -438,11 +436,15 @@ int main(int argc, char **argv)
 			// 把上面的文件 关闭
 			r2live_relo_relative_pose.close();
 
+
+			// 保证每次的step不一样，这样不会每次都用同样的点云。更合理一点
+		    step_len = rand()%3 + 3; //[4,5]
+    	    // ROS_INFO("step_len : %d .",step_len );
 			// 抽样 显示
-			if (keyframe_cnts % 10 != 0)
+			if (keyframe_cnts % 20 != 0)
 				continue;
 			
-			cout << keyframe_cnts << "th keyframe_cnts  : " << i << "th pointclouds " << endl;
+			cout << keyframe_cnts << "th keyframe_cnts  : " << i << "th pointclouds " << "step_len: " << step_len <<  endl;
 			dzlog_info("%dth keyframe_cnts, %dth pointclouds.", keyframe_cnts, i);
 
 

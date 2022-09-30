@@ -201,8 +201,7 @@ int main(int argc, char **argv)
 
 	int cnts_ = 0;
 	
-    // for (int i = 0; i < pcd_file.size(); i += 1 )
-    for (int i = 6000; i < 7050; i += 5 )
+    for (int i = 0; i < pcd_file.size(); i += 1 )
 	{
 		// 跳过中间没有回环的部分，直接看回环部分的点云
 		// if(i == 1000 )
