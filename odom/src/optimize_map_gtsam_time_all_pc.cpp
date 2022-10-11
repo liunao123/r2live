@@ -168,7 +168,8 @@ int main(int argc, char **argv)
 	}
 	// 获取 loop_time_file 的 时间
 	std::vector<std::pair<double, double>> loop_time;
-	double last_loop_time = 0;
+	double last_loop_time_s = 0;
+	double last_loop_time_f = 0;
 	while (loop_time_file.getline(buf, sizeof(buf)))
 	{
 		char *p;
@@ -180,12 +181,14 @@ int main(int argc, char **argv)
 		std::pair<double, double> pair_temp(f, s);
 
 		// 两个视觉回环 视觉 相隔 大于 5秒，才加进去一个
-		if ( fabs( f - last_loop_time ) > 1.0 )
+		const float loop_time_gap = 1.0;
+		if ( fabs( f - last_loop_time_f ) > loop_time_gap || fabs( s - last_loop_time_s ) > loop_time_gap )
 		{
 			loop_time.push_back(pair_temp);
-            last_loop_time = f;
-		    std::cout <<  setiosflags(ios::fixed) << f << " " << s << std::endl;
-		}		
+            last_loop_time_f = f;
+            last_loop_time_s = s;
+		    // std::cout <<  setiosflags(ios::fixed) << f << " " << s << std::endl;
+		}
 	}
 	loop_time_file.close();
 
@@ -200,7 +203,7 @@ int main(int argc, char **argv)
 
 	ROS_INFO("sssssssss");
 
-	int step_len = 3;
+	int step_len = 4;
 	int cnts = 0;
 	int keyframe_cnts = 0;
 
@@ -218,40 +221,10 @@ int main(int argc, char **argv)
 	}
 
 	ROS_INFO("s : %d , end : %d ", _start, _end );
-	const int step_long = 3;
-	const int step_short = 2;
 
 	srand(time(0));
 	for (int i =  _start ; i <  pcd_file.size() - _end; i += step_len)
 	{
-		// continue;
-
-    	// llc.setTranslationThreshold(0.5);
-/*
-		if( i < 5000 && i > 3800)
-		{
-		    step_len = step_short;
-			llc.setTranslationThreshold(0.3);
-		}
-
-		if( i < 14500 && i > 14200)
-		{
-		    step_len = step_short;
-			llc.setTranslationThreshold(0.3);
-		}
- 
-		if( i < 2000 || i > 15000)
-		{
-		    step_len = step_short;
-			llc.setTranslationThreshold(0.3);
-		}
-
-		if( i < 12000 && i > 11000)
-		{
-		    step_len = step_short;
-			llc.setTranslationThreshold(0.3);
-		}
- */
 		auto pos_last_g = pcd_file[i].find_last_of("/") + 1;
 		auto pos_last_d = pcd_file[i].find_last_of(".") + 1;
 		// 从文件名字里，获取时间
@@ -298,6 +271,12 @@ int main(int argc, char **argv)
 				error_pcd = true;
 				break;
 			}
+
+    		// if (cloud->points[in].x > 150 || cloud->points[in].y > 150 || cloud->points[in].z > 150)
+			// {
+			// 	break;
+			// }
+
 			cloud->points[in].x += Lidar_offset_to_IMU_temp[0];
 			cloud->points[in].y += Lidar_offset_to_IMU_temp[1];
 			cloud->points[in].z += Lidar_offset_to_IMU_temp[2];
@@ -346,12 +325,14 @@ int main(int argc, char **argv)
 		// 这一个点云的 header
 		cloud->header.stamp = pcd_time;
 		cloud->header.frame_id = lio_pose[i].header.frame_id;
+		
+		// 保证每次的step不一样，这样不会每次都用同样的点云。更合理一点
+		// step_len = rand()%2 + 3; //[3,4]
+    	// ROS_INFO("step_len : %d .",step_len );
 
 		if (llc.addPoseAndKeyScan(delta, cloud))
-		// if (1)
 		{
 			// cout << i << "th pcd : " << pcd_file[i] << "  " <<__LINE__ << endl;
-
 			keyframe_cnts++;
 
 			// 可视化关键帧的点云
@@ -388,10 +369,6 @@ int main(int argc, char **argv)
 			// 把上面的文件 关闭
 			r2live_relo_relative_pose.close();
 
-			// 保证每次的step不一样，这样不会每次都用同样的点云。更合理一点
-		    step_len = rand()%3 + 2; //[4,5]
-    	    // ROS_INFO("step_len : %d .",step_len );
-			// 抽样 显示
 			if (keyframe_cnts % 25 != 0)
 				continue;
 
@@ -415,7 +392,6 @@ int main(int argc, char **argv)
 			viewer.showCloud(transformed_cloud);
 			viewer.showCloud(map);
 
-			// boost::this_thread::sleep(boost::posix_time::microseconds(2));
 		}
 	}
 
@@ -433,9 +409,7 @@ int main(int argc, char **argv)
 	// cout << "wait cmd (s is save map .) : "  << endl;
 	while (1)
 	{
-		// 堵塞在这 等着 键盘的输入
-		// char ch = getchar();
-		// if ('s' == ch)
+		// 堵塞在这 等着 回环线程结束
 		if ( llc.getIsLoopThreadExit() )
 		{
 			break;

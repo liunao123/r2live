@@ -98,6 +98,10 @@ int initZlog()
 
 int main(int argc, char **argv)
 {
+	// enum Roster { Tom = 1, Sharon, Bill, Teresa, John };
+	// std::cout << "   : " << std::to_string(Teresa)  <<  std::endl;
+	// return 0;
+
     //初始化zlog
 	if (0 == initZlog())
 	{
@@ -173,7 +177,8 @@ int main(int argc, char **argv)
 	}
 	// 获取 loop_time_file 的 时间
 	std::vector<std::pair<double, double>> loop_time;
-	double last_loop_time = 0;
+	double last_loop_time_s = 0;
+	double last_loop_time_f = 0;
 	while (loop_time_file.getline(buf, sizeof(buf)))
 	{
 		char *p;
@@ -185,12 +190,14 @@ int main(int argc, char **argv)
 		std::pair<double, double> pair_temp(f, s);
 
 		// 两个视觉回环 视觉 相隔 大于 5秒，才加进去一个
-		if ( fabs( f - last_loop_time ) > 1.0 )
+		const float loop_time_gap = 1.0;
+		if ( fabs( f - last_loop_time_f ) > loop_time_gap || fabs( s - last_loop_time_s ) > loop_time_gap )
 		{
 			loop_time.push_back(pair_temp);
-            last_loop_time = f;
-		}		
-		// std::cout <<  setiosflags(ios::fixed) << f << " " << s << std::endl;
+            last_loop_time_f = f;
+            last_loop_time_s = s;
+	    	// std::cout <<  setiosflags(ios::fixed) << f << " " << s << std::endl;
+		}
 	}
 	loop_time_file.close();
 
@@ -230,7 +237,7 @@ int main(int argc, char **argv)
 	// const int jump_end = pcd_file.size() - 2500;
 	ROS_INFO("sssssssss");
 
-	int step_len = 5;
+	int step_len = 2;
 	int cnts = 0;
 	int keyframe_cnts = 0;
 	bool jump = false;
@@ -341,7 +348,6 @@ int main(int argc, char **argv)
 				cloud->points[in].z += Lidar_offset_to_IMU_temp[2];
 			}
 
-
         // 第一帧点云 单独插入进去 
 		if (keyframe_cnts == 0)
 		{
@@ -381,7 +387,7 @@ int main(int argc, char **argv)
 
 		if (jump == true)
 		{
-			cout <<  "----------------------JUMP ----________---------------------------- " << endl ;
+			cout <<  "----------------------JUMP -------------------------------- " << endl ;
 			pose_i = pose_jump;
 		}
 
@@ -396,6 +402,20 @@ int main(int argc, char **argv)
 		// 这一个点云的 header
 		cloud->header.stamp = pcd_time;
 		cloud->header.frame_id = lio_pose[i].header.frame_id;
+		//  保证每次的step不一样，这样不会每次都用同样的点云。更合理一点
+		step_len = rand()%2 + 2; //[4,5]
+    	// ROS_INFO("step_len : %d .",step_len );
+		// if( i > 2000 && i < 22000)
+		// {
+		//     step_len = 4;
+		// 	llc.setTranslationThreshold(0.75);
+		// }
+		// else
+		// {
+		//     step_len = 3;
+		// 	llc.setTranslationThreshold(0.5);
+		// }
+
 
 		if (llc.addPoseAndKeyScan(delta, cloud))
 		// if (1) 
@@ -436,10 +456,6 @@ int main(int argc, char **argv)
 			// 把上面的文件 关闭
 			r2live_relo_relative_pose.close();
 
-
-			// 保证每次的step不一样，这样不会每次都用同样的点云。更合理一点
-		    step_len = rand()%3 + 3; //[4,5]
-    	    // ROS_INFO("step_len : %d .",step_len );
 			// 抽样 显示
 			if (keyframe_cnts % 20 != 0)
 				continue;
@@ -483,13 +499,11 @@ int main(int argc, char **argv)
 	while (1)
 	{
 		// 堵塞在这 等着 键盘的输入
-		char ch = getchar();
-		if ('s' == ch)
+		if ( llc.getIsLoopThreadExit() )
 		{
-			// llc.saveMap();
-			// llc.saveGtsam2G2oFile(work_dir + "loop_gtsam_optimized.g2o");
 			break;
 		}
+		usleep(1000*1000);
 	}
 
 	return 1;
