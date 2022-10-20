@@ -195,7 +195,15 @@ void img_callback(const sensor_msgs::ImageConstPtr &img_msg)
                     tmp_prev_un_pts.z() = 1;
                     Vector2d tmp_prev_uv;
                     trackerData[i].m_camera->spaceToPlane(tmp_prev_un_pts, tmp_prev_uv);
+
+                    // if( 640 < tmp_prev_uv.x() || 480.0 < tmp_prev_uv.y() || trackerData[i].pts_velocity[j].x == 0.0 || trackerData[i].pts_velocity[j].y == 0.0 )
+                    if (trackerData[i].track_cnt[j] > 1)
+                    {
+                    // ROS_WARN("%d ", trackerData[i].track_cnt[j] );
                     cv::line(tmp_img, trackerData[i].cur_pts[j], cv::Point2f(tmp_prev_uv.x(), tmp_prev_uv.y()), cv::Scalar(255 , 0, 0), 1 , 8, 0);
+                    // ROS_INFO("%u , tmp_prev_uv[j].x: %f, y : %f", j, tmp_prev_uv.x(), tmp_prev_uv.y());
+                    // ROS_INFO("%u , trackerData[i].pts_velocity[j].x: %f, y : %f", j, trackerData[i].pts_velocity[j].x, trackerData[i].pts_velocity[j].y);
+                    }
                     
                     //char name[10];
                     //sprintf(name, "%d", trackerData[i].ids[j]);
@@ -207,10 +215,10 @@ void img_callback(const sensor_msgs::ImageConstPtr &img_msg)
             pub_match.publish(ptr->toImageMsg());
         }
     }
-    ROS_INFO("whole feature tracker processing costs: %f", t_r.toc());
+    // ROS_INFO("whole feature tracker processing costs: %f", t_r.toc());
     cost_time_total = t_r.toc() + cost_time_total;
     total_frame_idx++;
-    ROS_INFO("Average front-end cost time: %f", cost_time_total / total_frame_idx );
+    // ROS_INFO("Average front-end cost time: %f", cost_time_total / total_frame_idx );
 }
 
 template <typename T>

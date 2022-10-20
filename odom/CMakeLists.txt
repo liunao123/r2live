@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(odom)
+set(CMAKE_BUILD_TYPE "RELEASE")
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++14)
@@ -11,6 +12,9 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   roscpp
   tf
+  geometry_msgs
+  message_generation
+  std_msgs  
 )
 
 
@@ -19,6 +23,17 @@ find_package(Eigen3 REQUIRED)
 find_package(GTSAM REQUIRED)
 
 find_package(PCL 1.8 REQUIRED )
+# Generate services in the 'srv' folder
+add_service_files(
+  # FILES
+  # LoopTimePair.srv
+  DIRECTORY
+  srv
+)
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
 
 INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
 
@@ -30,6 +45,11 @@ link_directories(
 )
 
 add_definitions(${PCL_DEFINITIONS})
+
+# 添加exec执行的依赖
+catkin_package(
+  CATKIN_DEPENDS roscpp rospy std_msgs message_runtime
+)
 
 ###################################
 ## catkin specific configuration ##
@@ -126,6 +146,10 @@ add_executable (${src_file} src/${src_file}.cpp src/LaserLoopClosure_time.cc)
 add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${GTSAM_LIBRARY_DIRS} libzlog.a)
 
+SET(src_file get_two_msg)
+add_executable (${src_file} src/${src_file}.cpp src/LaserLoopClosure_time_service.cc)
+add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${GTSAM_LIBRARY_DIRS} libzlog.a)
 
 message(STATUS "------------gtsam :${gtsam}")
 message(STATUS "------------gtsam 2222 : ${GTSAM_LIBRARY_DIRS}")

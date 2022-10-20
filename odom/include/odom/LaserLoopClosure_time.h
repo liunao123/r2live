@@ -18,6 +18,7 @@
 #include <pcl_ros/point_cloud.h>
 #include <map>
 #include <vector>
+#include <queue>
 #include <fstream>
 #include <mutex>
 
@@ -32,7 +33,8 @@ public:
     bool Initialize();
     void saveMap();
     void setVisionLoopTime(const std::vector< std::pair< double , double > > & loop_time);
-
+    void setOneLoopTime(const double first, const double second);
+    void setMapThreadDone();
 
     // Typedef for 6x6 covariance matrices (x, y, z, roll, pitch, yaw).
     typedef geometry_utils::MatrixNxNBase<double, 6> Mat66;
@@ -191,7 +193,10 @@ private:
     double detect_time_regional_ ;
     // 记录时间回环的时间戳 成对
     std::vector< std::pair< double , double > > loop_time_;
+    std::queue< std::pair< double , double > > loop_time_queue;
     std::string work_dir_;
+    bool have_loop_closure_flag;
+    std::mutex g_Mutex;
     
 };
 

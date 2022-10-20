@@ -64,6 +64,8 @@
 #include <tf/transform_broadcaster.h>
 // #include <fast_lio/States.h>
 #include <geometry_msgs/Vector3.h>
+//#include <geometry_msgs/PoseStamped.h>
+
 #include <FOV_Checker/FOV_Checker.h>
 #ifndef DEPLOY
 // #include "matplotlibcpp.h"
@@ -190,6 +192,10 @@ public:
     ros::Publisher pubLaserCloudMap;
     ros::Publisher pubOdomAftMapped;
     ros::Publisher pubPath;
+
+    ros::Publisher pubBodyPose;
+    ros::Publisher pubSurfPoint;
+
     ros::Subscriber sub_pcl;
     ros::Subscriber sub_imu;
     bool dense_map_en, flg_EKF_inited = 0, flg_map_inited = 0, flg_EKF_converged = 0;
@@ -845,6 +851,9 @@ public:
         downSizeFilterTempMap.setLeafSize(0.1f , 0.1f, 0.1f);
 
         lio_path_file.open("/home/map/lio_path.txt", ios::out);
+
+        pubBodyPose = nh.advertise<geometry_msgs::PoseStamped>("/body_pose", 10);
+        pubSurfPoint = nh.advertise<sensor_msgs::PointCloud2>("/livox_surf_point", 10);
 
         // m_lio_state_fp = fopen("/home/ziv/temp/lic_lio.log", "w+");
         // m_lio_costtime_fp = fopen("/home/ziv/temp/lic_lio_costtime.log", "w+");
@@ -1526,12 +1535,18 @@ public:
                             // pcl::copyPointCloud(*laserCloudFullResColor, *temp); //复制
 
                             //ROS_WARN("size of map <before filter >: %d ", temp->width * temp->height); 
-                            pcl::RandomSample<PointType> rand_filter;
-                            rand_filter.setSample(4000);
-                            rand_filter.setInputCloud(laserCloudFullRes2);
-                            rand_filter.filter(*laserCloudFullRes2);
+                            // pcl::RandomSample<PointType> rand_filter;
+                            // rand_filter.setSample(4000);
+                            // rand_filter.setInputCloud(laserCloudFullRes2);
+                            // rand_filter.filter(*laserCloudFullRes2);
+
+                sensor_msgs::PointCloud2 surf_points;
+                pcl::toROSMsg(*laserCloudFullRes2, surf_points);
+                surf_points.header.stamp = ros::Time().fromSec(Measures.lidar_end_time);                
+                surf_points.header.frame_id = "livox";
+                pubSurfPoint.publish(surf_points);
                             
-                pcl::io::savePCDFile (  filename , *laserCloudFullRes2);
+                pcl::io::savePCDFile (  filename , *laserCloudFullRes2 );
 
                 // ofstream lio_path_file("/home/map/lio_path.txt", ios::app);
 
@@ -1609,7 +1624,7 @@ public:
                     laserCloudFullRes3.header.frame_id = "world";       // world; camera_init
                     pubLaserCloudFullRes.publish(laserCloudFullRes3);
                     
-if(g_camera_lidar_queue.m_if_write_res_to_bag)
+                if(g_camera_lidar_queue.m_if_write_res_to_bag)
                     {
                         g_camera_lidar_queue.m_bag_for_record.write(pubLaserCloudFullRes.getTopic(),laserCloudFullRes3.header.stamp, laserCloudFullRes3);
                     }
@@ -1672,8 +1687,10 @@ if(g_camera_lidar_queue.m_if_write_res_to_bag)
                 transform.setRotation(q);
                 br.sendTransform(tf::StampedTransform(transform, ros::Time().fromSec(Measures.lidar_end_time), "world", "/aft_mapped"));
 
-                msg_body_pose.header.stamp = ros::Time::now();
-                msg_body_pose.header.frame_id = "/camera_odom_frame";
+                // msg_body_pose.header.stamp = ros::Time::now();
+                // msg_body_pose.header.frame_id = "/camera_odom_frame";
+                msg_body_pose.header.stamp = ros::Time().fromSec(Measures.lidar_end_time);
+                msg_body_pose.header.frame_id = "/world";
                 msg_body_pose.pose.position.x = g_lio_state.pos_end(0);
                 msg_body_pose.pose.position.y = g_lio_state.pos_end(1);
                 msg_body_pose.pose.position.z = g_lio_state.pos_end(2);
@@ -1702,6 +1719,9 @@ if(g_camera_lidar_queue.m_if_write_res_to_bag)
 #ifdef DEPLOY
                 mavros_pose_publisher.publish(msg_body_pose);
 #endif
+
+                // to publish imu pose, add by ln 20221019,
+                pubBodyPose.publish(msg_body_pose);
 
                 /******* Publish Path ********/
                 msg_body_pose.header.frame_id = "world";

@@ -43,7 +43,8 @@
   <build_depend>camera_model</build_depend>
   <run_depend>camera_model</run_depend>
 
-
+  <build_depend>odom</build_depend>
+  <run_depend>odom</run_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

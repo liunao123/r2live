@@ -203,7 +203,7 @@ int main(int argc, char **argv)
 
 	ROS_INFO("sssssssss");
 
-	int step_len = 4;
+	int step_len = 2;
 	int cnts = 0;
 	int keyframe_cnts = 0;
 
@@ -327,7 +327,7 @@ int main(int argc, char **argv)
 		cloud->header.frame_id = lio_pose[i].header.frame_id;
 		
 		// 保证每次的step不一样，这样不会每次都用同样的点云。更合理一点
-		// step_len = rand()%2 + 3; //[3,4]
+		step_len = rand()%2 + 3; //[3,4]  
     	// ROS_INFO("step_len : %d .",step_len );
 
 		if (llc.addPoseAndKeyScan(delta, cloud))
@@ -393,6 +393,7 @@ int main(int argc, char **argv)
 			viewer.showCloud(map);
 
 		}
+	
 	}
 
 	ROS_INFO("eeeeeeeeee");

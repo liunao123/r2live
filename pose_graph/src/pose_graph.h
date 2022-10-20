@@ -24,6 +24,7 @@
 #include "ThirdParty/DBoW/TemplatedDatabase.h"
 #include "ThirdParty/DBoW/TemplatedVocabulary.h"
 
+#include "odom/LoopTimePair.h"
 
 #define SHOW_S_EDGE true //false
 #define SHOW_L_EDGE true
@@ -84,6 +85,7 @@ private:
 	ros::Publisher pub_base_path;
 	ros::Publisher pub_pose_graph;
 	ros::Publisher pub_path[10];
+	ros::ServiceClient loop_time_client;
 };
 
 template <typename T>
