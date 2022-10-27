@@ -153,3 +153,118 @@ int main(int argc, char **argv)
   cout<<"bds_end_com = "<< to_ang(bds_end_com[2])  << endl;
 
 }
+
+
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <Eigen/Core>
+#include <Eigen/Geometry>
+
+using namespace std;
+using namespace Eigen;
+
+Eigen::Vector3d R2ypr(const Eigen::Matrix3d &R)
+{
+  Eigen::Vector3d n = R.col(0);
+  Eigen::Vector3d o = R.col(1);
+  Eigen::Vector3d a = R.col(2);
+
+  Eigen::Vector3d ypr(3);
+  double y = atan2(n(1), n(0));
+  double p = atan2(-n(2), n(0) * cos(y) + n(1) * sin(y));
+  double r = atan2(a(0) * sin(y) - a(1) * cos(y), -o(0) * sin(y) + o(1) * cos(y));
+  ypr(0) = y;
+  ypr(1) = p;
+  ypr(2) = r;
+
+  return ypr; // / M_PI * 180.0;
+}
+
+/**
+ * @brief Get the Transform Map2UTM ,根据 在两个frame下的同一个位置 <x,y,yaw> <左手系>
+ * 
+ * @param vfirst 
+ * @param vsecond 
+ * @return Eigen::Isometry3d 
+ */
+Eigen::Isometry3d getTransformSecond2First(const Eigen::Vector3d vfirst, const Eigen::Vector3d vsecond)
+{
+  // 得到欧拉角yaw， 两个frame的 相对旋转
+  double theta =  ( vfirst[2] - vsecond[2] );
+  double ct = cos(theta);
+  double st = sin(theta);
+
+  Eigen::Vector3d dt;
+  // 根据 P = R*p0 + t; 来求 t 
+  dt[0] = vfirst[0] - (vsecond[0]*ct  - vsecond[1]*st) ;
+  dt[1] = vfirst[1] - (vsecond[0]*st  + vsecond[1]*ct) ;
+  dt[2] = 0;
+
+  // cout << endl << "dt " << dt <<  endl << endl;
+
+  // Isometry3d 是先平移过去（dt ），等二者的原点重合后，再旋转（Rat）
+  Eigen::AngleAxisd Rat( theta , Eigen::Vector3d(0, 0, 1));
+
+  Eigen::Isometry3d TF_map2utm = Eigen::Isometry3d::Identity();
+  cout << endl << "-- " << TF_map2utm.matrix() <<  endl << endl;
+
+  TF_map2utm.pretranslate(  dt ); 
+  TF_map2utm.rotate ( Rat );
+  return TF_map2utm;
+
+}
+
+
+
+/**
+ * @brief Get the Pose In UTM <左手系>
+ * 
+ * @param TF_get 
+ * @param pose_  <x,y,yaw>
+ * @return Eigen::Vector3d
+ */
+Eigen::Vector3d getPoseInFirst(const Eigen::Isometry3d TF_get, const Eigen::Vector3d pose_)
+{
+  Eigen::Vector3d pose_transed = TF_get * pose_ ;
+  // cout << TF_get.rotate() << endl;
+  // cout << TF_get.linear().matrix() << endl;
+  // theta
+
+// Eigen 得到的欧拉角没有负值，是有问题的
+// https://zhuanlan.zhihu.com/p/55790406?utm_source=wechat_session
+// https://blog.csdn.net/delovsam/article/details/104432185?spm=1001.2101.3001.6650.1&utm_medium=distribute.pc_relevant.none-task-blog-2%7Edefault%7ECTRLIST%7ERate-1-104432185-blog-104392537.pc_relevant_aa_2&depth_1-utm_source=distribute.pc_relevant.none-task-blog-2%7Edefault%7ECTRLIST%7ERate-1-104432185-blog-104392537.pc_relevant_aa_2&utm_relevant_index=2
+
+  //Eigen::Vector3d euler_angles = TF_get.linear().matrix().eulerAngles(2,1,0);	// ZYX顺序，即yaw pitch roll顺序
+  Eigen::Vector3d euler_angles = R2ypr( TF_get.linear().matrix() );
+
+  cout<<"yaw pitch roll = "<< euler_angles.transpose() << endl << endl;
+  
+  pose_transed[2] = pose_[2] + euler_angles[0];
+
+  return pose_transed;
+
+}
+
+
+int main(int argc, char** argv) 
+{
+
+//Eigen::Vector3d P_first(-4.946163,  -4.920077,  0.967766);
+//Eigen::Vector3d P_second(9.060000,  4.429000, 0.000000);
+
+Eigen::Vector3d P_first(8.935928,4.276596,-3.093629);
+Eigen::Vector3d P_second(0000,  000, 0.000000);
+
+
+Eigen::Isometry3d TF_second2first = getTransformSecond2First( P_first,  P_second);
+
+
+Eigen::Vector3d trans_result =  getPoseInFirst(TF_second2first, P_second);
+
+
+cout  << "----------trans result is :" << trans_result.transpose() << endl <<  endl << endl;
+
+
+return 0;
+}
