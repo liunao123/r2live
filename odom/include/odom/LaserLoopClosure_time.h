@@ -195,7 +195,6 @@ private:
     std::vector< std::pair< double , double > > loop_time_;
     std::queue< std::pair< double , double > > loop_time_queue;
     std::string work_dir_;
-    bool have_loop_closure_flag;
     std::mutex g_Mutex;
     
 };

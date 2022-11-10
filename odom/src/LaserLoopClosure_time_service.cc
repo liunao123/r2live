@@ -48,7 +48,6 @@ LaserLoopClosure::LaserLoopClosure() : key_(0),
                                        loop_cnts_(0),
                                        detect_time_regional_(2.5), // 在视觉回环发生的多少时间范围内，进行 点云匹配
                                        detect_step_(1),           // 点云检测的步长，跳着去匹配
-                                       have_loop_closure_flag(false),
                                        work_dir_("/home/map/temp_test/")
 {
     std::cout << " construct fun : " << std::endl;
@@ -63,6 +62,8 @@ void LaserLoopClosure::saveMap()
 {
     cout << "start save map and  optimized path , waiting please ......" << endl;
     std::cout << __FILE__ << ":" << __LINE__ << "  loopClosure Check DONE, SAVE pointcloud map .  " << std::endl;
+    // 最后再优化一次
+    values_ = isam_->calculateEstimate();
 
 	saveGtsam2G2oFile(work_dir_ + "loop_gtsam_optimized.g2o");
 
@@ -78,7 +79,7 @@ void LaserLoopClosure::saveMap()
     downSizeFilterTempMap.setLeafSize(0.1f , 0.1f, 0.1f);
     downSizeFilterTempMap.setInputCloud((*points).makeShared());
     downSizeFilterTempMap.filter(*points);
-    cout << __FILE__ << ":" << __LINE__ << " after filter size is <0.3f >:"  << points->points.size() << endl;
+    cout << __FILE__ << ":" << __LINE__ << " after filter size is <0.1f >:"  << points->points.size() << endl;
     name = work_dir_ + "optimized_map_gtsam_1dm.pcd";
     pcl::io::savePCDFile(name, *points);
 
@@ -94,21 +95,22 @@ void LaserLoopClosure::setVisionLoopTime(const std::vector<std::pair<double, dou
 
 void LaserLoopClosure::setOneLoopTime(const double first, const double second)
 {
-    have_loop_closure_flag = true;
     // 加锁 ，防止和后面pop的动作冲突
+    std::lock_guard<std::mutex> lock(keyScanMutexM);
+
     if (loop_time_queue.empty())
     {
-        g_Mutex.lock();
+        // g_Mutex.lock();
         loop_time_queue.push(std::make_pair(first, second));
-        g_Mutex.unlock();
+        // g_Mutex.unlock();
     }
     else
     {
         if (std::fabs(loop_time_queue.back().first - first) > 2.0 || std::fabs(loop_time_queue.back().second - second) > 2.0)
         {
-            g_Mutex.lock();
+            // g_Mutex.lock();
             loop_time_queue.push(std::make_pair(first, second));
-            g_Mutex.unlock();
+            // g_Mutex.unlock();
         }
     }
 
@@ -174,7 +176,7 @@ bool LaserLoopClosure::LoadParameters()
     // if (!pu::Get("loop_closure/relinearize_threshold", relinearize_threshold)) return false;
 
     // Load loop closing parameters.
-    translation_threshold_ = 0.5;  // 0.75
+    translation_threshold_ = 0.7;  // 0.75
     proximity_threshold_ = 15;     // 10
     max_tolerable_fitness_ = 0.36;  // 0.36; 不要太高< less 0.5 >，否则错误的约束加到GTSAM里面后，无法优化出结果
     skip_recent_poses_ = 20;       // 20
@@ -596,17 +598,19 @@ void LaserLoopClosure::updatePoseFactor()
     for (int i = 5; i < 6; ++i)
         covariance(i, i) = 0.04;
 
-    g_Mutex.lock();
+    isamMutexM.lock();
+    
     NonlinearFactorGraph new_factor;
     new_factor.add(BetweenFactor<Pose3>(iCurHdlKeyM, iLoopKeyM, ToGtsam(loopDeltaM), ToGtsam(covariance)));
     isam_->update(new_factor, Values());
     values_ = isam_->calculateEstimate(); //原来是有无回环都调用一次，但是感觉无回环没必要调用
     last_closure_key_ = iCurHdlKeyM;
-    g_Mutex.unlock();
-
-    loop_edges_.push_back(std::make_pair(iCurHdlKeyM, iLoopKeyM));
-    // 标示我们发现了一个闭环
-    loop_closure_notifier_pub_.publish(std_msgs::Empty());
+    
+    isamMutexM.unlock();
+    
+    // loop_edges_.push_back(std::make_pair(iCurHdlKeyM, iLoopKeyM));
+    // // 标示我们发现了一个闭环
+    // loop_closure_notifier_pub_.publish(std_msgs::Empty());
     dzlog_info("@@@@@@ updatePoseFactor() update loop pose between key %u and %u", iCurHdlKeyM, iLoopKeyM);
 }
 
@@ -632,11 +636,11 @@ bool LaserLoopClosure::getIsLoopThreadExit()
 
 void LaserLoopClosure::saveGtsam2G2oFile(string outputFile)
 {
-    g_Mutex.lock();
+    isamMutexM.lock();
     gtsam::Values value = isam_->calculateEstimate();
     NonlinearFactorGraph factorGraph = isam_->getFactorsUnsafe();
     gtsam::writeG2o(factorGraph, value, outputFile);
-    g_Mutex.unlock();
+    isamMutexM.unlock();
 }
 
 bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr &scan1,
@@ -696,7 +700,7 @@ bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr &scan1,
 
     if (icp.getFitnessScore() > max_tolerable_fitness_)
     {
-        dzlog_info("score %f ", icp.getFitnessScore());
+        // dzlog_info("score %f ", icp.getFitnessScore());
         return false;
     }
 
@@ -799,17 +803,15 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
         const gu::Transform3 difference = gu::PoseDelta(pose1, pose2);
 
         // const PointCloud::ConstPtr scan2 = keyed_scans_[other_key];
-        // const PointCloud::ConstPtr scan2;
         PointCloud::Ptr scan2(new PointCloud);
         try
 		{
             getKeyedScan(other_key, scan2);
-            // scan2 = keyed_scans_[other_key];
 		}
 		catch (const std::exception &e)
 		{
-			std::cerr << e.what() << '\n';
-			break;
+		    std::cerr << "get points fails: " << other_key << " error code:" << e.what() << '\n';
+			continue;
 		}
 
         // 时间戳是不是在视觉回环的附近
@@ -819,7 +821,7 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
             continue;
         }
 
-        dzlog_info("try DO GICP , with other_key is %u , key is %u ", other_key, key);
+        // dzlog_info("try DO GICP , with other_key is %u , key is %u ", other_key, key);
         // 从头到尾 依次检测，有可能出现：
         // 中间的回环将尾的位置 纠正到 离头的 位置很远，这样 位置差就不满足以下的关系了。
         // 由于已经从视觉回环上确定了大概的时间，此时对应的位置也基本确定，将其注释掉，问题不大。
@@ -856,14 +858,14 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
         auto rota_temp = delta.rotation.GetEulerZYX() * 180 / M_PI;
         dzlog_info(" delta is: rotation: %f, %f, %f (deg).", rota_temp(0), rota_temp(1), rota_temp(2));
 
-        g_Mutex.lock();
+        std::lock_guard<std::mutex> lock(isamMutexM);
+        // g_Mutex.lock();
         NonlinearFactorGraph new_factor;
         new_factor.add(BetweenFactor<Pose3>(key, keyResut, ToGtsam(delta), ToGtsam(covariance)));
         isam_->update(new_factor, Values());
         values_ = isam_->calculateEstimate();
 
-        g_Mutex.unlock();
-
+        // g_Mutex.unlock();
         
         loop_cnts_++;
         // saveGtsam2G2oFile(work_dir_ + std::to_string(loop_cnts_) +"_loop_gtsam_optimized.g2o");
@@ -881,6 +883,7 @@ bool LaserLoopClosure::AddBetweenFactor(const gu::Transform3 &delta,
                                         const LaserLoopClosure::Mat66 &covariance,
                                         const ros::Time &stamp, unsigned int *key)
 {
+    std::lock_guard<std::mutex> lock(keyScanMutexM);
     if (key == NULL)
     {
         dzlog_info("%s: Output key is null.", name_.c_str());
@@ -900,7 +903,7 @@ bool LaserLoopClosure::AddBetweenFactor(const gu::Transform3 &delta,
         return false;
     }
 
-    g_Mutex.lock();
+    // g_Mutex.lock();
     
     NonlinearFactorGraph new_factor;
     Values new_value;
@@ -916,7 +919,7 @@ bool LaserLoopClosure::AddBetweenFactor(const gu::Transform3 &delta,
     isam_->update(new_factor, new_value);
     values_ = isam_->calculateEstimate();
 
-    g_Mutex.unlock();
+    // g_Mutex.unlock();
 
     // Assign output and get ready to go again!
     *key = key_++;
@@ -988,7 +991,7 @@ void LaserLoopClosure::loopClosureThread()
         unsigned int iKey = 0;
         // unsigned int iKey = 1;
         
-        int last_key_cnts = -1;
+        iKey = last_closure_key_;
 
         while (1)
         {
@@ -999,7 +1002,7 @@ void LaserLoopClosure::loopClosureThread()
             if (iKey > key_ - skip_recent_poses_)
                 break;
 
-            if (iKey - last_closure_key_ < skip_recent_poses_)
+            if ( iKey - last_closure_key_  < skip_recent_poses_)
                 continue;
 
             PointCloud::Ptr scan(new PointCloud);
@@ -1009,7 +1012,7 @@ void LaserLoopClosure::loopClosureThread()
 		    }
 		    catch (const std::exception &e)
 		    {
-		    	std::cerr << e.what() << '\n';
+    		    std::cerr << "get points fails: " << iKey << " error code:" << e.what() << '\n';
 		    	break;
 		    }
 

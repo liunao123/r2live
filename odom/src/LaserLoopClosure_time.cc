@@ -59,8 +59,11 @@ LaserLoopClosure::~LaserLoopClosure()
 
 void LaserLoopClosure::saveMap()
 {
-    cout << "start save map , waiting please ......" << endl;
+    cout << "start save map and  optimized path , waiting please ......" << endl;
     std::cout << __FILE__ << ":" << __LINE__ << "  loopClosure Check DONE, SAVE pointcloud map .  " << std::endl;
+    // 最后再优化一次
+    values_ = isam_->calculateEstimate();
+	saveGtsam2G2oFile(work_dir_ + "loop_gtsam_optimized.g2o");
 
     PointCloud *points = new PointCloud();
     GetMaximumLikelihoodPoints(points); // points->makeShared()
@@ -69,14 +72,14 @@ void LaserLoopClosure::saveMap()
     pcl::io::savePCDFile(name, *points);
     cout << "map path is :" << name << endl;
 
-    // cout << "before filter size is :"  << points->points.size() << endl;
-    // pcl::VoxelGrid<pcl::PointXYZ> downSizeFilterTempMap;
-    // downSizeFilterTempMap.setLeafSize(0.1f , 0.1f, 0.1f);
-    // downSizeFilterTempMap.setInputCloud((*points).makeShared());
-    // downSizeFilterTempMap.filter(*points);
-    // cout << __FILE__ << ":" << __LINE__ << " after filter size is <0.3f >:"  << points->points.size() << endl;
-    // name = work_dir_ + "optimized_map_gtsam_3dm.pcd";
-    // pcl::io::savePCDFile(name, *points);
+    cout << "before filter size is :"  << points->points.size() << endl;
+    pcl::VoxelGrid<pcl::PointXYZ> downSizeFilterTempMap;
+    downSizeFilterTempMap.setLeafSize(0.1f , 0.1f, 0.1f);
+    downSizeFilterTempMap.setInputCloud((*points).makeShared());
+    downSizeFilterTempMap.filter(*points);
+    cout << __FILE__ << ":" << __LINE__ << " after filter size is <0.1f >:"  << points->points.size() << endl;
+    name = work_dir_ + "optimized_map_gtsam_1dm.pcd";
+    pcl::io::savePCDFile(name, *points);
 
     cout << "save map ok, you can exit ......" << endl;
 }
@@ -151,10 +154,10 @@ bool LaserLoopClosure::LoadParameters()
     // if (!pu::Get("loop_closure/relinearize_threshold", relinearize_threshold)) return false;
 
     // Load loop closing parameters.
-    translation_threshold_ = 0.75;  // 0.75
+    translation_threshold_ = 0.25;  // 0.75
     proximity_threshold_ = 15;     // 10
     max_tolerable_fitness_ = 0.36;  // 0.36; 不要太高< less 0.5 >，否则错误的约束加到GTSAM里面后，无法优化出结果
-    skip_recent_poses_ = 20;       // 20
+    skip_recent_poses_ = 2 + int(5.0 / translation_threshold_);       // 20
     maxLoopKeysYawM = 1.0; //1.05
     poses_before_reclosing_ = 10;
     // if (!pu::Get("loop_closure/translation_threshold", translation_threshold_)) return false;
@@ -953,7 +956,7 @@ void LaserLoopClosure::loopClosureThread()
     }
 
     // unsigned int iKey = 10;
-    unsigned int iKey = int( getLastScanKey() * 0.1 ) ;
+    unsigned int iKey = int( getLastScanKey() * 0.9 ) ;
 
     while (1)
     {
@@ -1013,10 +1016,7 @@ void LaserLoopClosure::loopClosureThread()
         }
     }
 
-    // values_ = isam_->calculateEstimate();
-
 	saveMap();
-	saveGtsam2G2oFile(work_dir_ + "loop_gtsam_optimized.g2o");
     dzlog_info("-------------------------------------------------------------------------  ");
     dzlog_info("----------------save result finish ...... -------------");
     dzlog_info("-------------------------------------------------------------------------  ");

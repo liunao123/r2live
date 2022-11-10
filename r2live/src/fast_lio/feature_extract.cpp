@@ -771,30 +771,30 @@ void give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &types, pcl::P
   }
 
 
-  // int last_surface = 0;
-  // for(uint i=0; i<plsize; i++)
-  // {
-  //   if(types[i].ftype==Poss_Plane || types[i].ftype==Real_Plane)
-  //   {
-  //     if(last_surface == 0)
-  //     {
-  //       pl_surf.push_back(pl[i]);
-  //       last_surface = 1;
-  //     }
-  //     else
-  //     {
-  //       last_surface = 0;
-  //     }
+  int last_surface = 0;
+  for(uint i=0; i<plsize; i++)
+  {
+    if(types[i].ftype==Poss_Plane || types[i].ftype==Real_Plane)
+    {
+      if(last_surface == 0)
+      {
+        pl_surf.push_back(pl[i]);
+        last_surface = 1;
+      }
+      else
+      {
+        last_surface = 0;
+      }
       
-  //   }
-  //   else if(types[i].ftype==Edge_Jump || types[i].ftype==Edge_Plane)
-  //   {
-  //     pl_corn.push_back(pl[i]);
-  //   }
+    }
+    else if(types[i].ftype==Edge_Jump || types[i].ftype==Edge_Plane)
+    {
+      pl_corn.push_back(pl[i]);
+    }
 
-  // }
+  }
 
-  int last_surface = -1;
+  last_surface = -1;
   for(uint j=head; j<plsize; j++)
   {
     if(types[j].ftype==Poss_Plane || types[j].ftype==Real_Plane)

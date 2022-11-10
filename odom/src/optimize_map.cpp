@@ -86,8 +86,70 @@ geometry_msgs::PoseStamped to_PoseStamped(std::vector<double> v8)
 	return p;
 }
 
+    //读取data_path对应参数文件里的相应值
+    void readNavParamsFromFile(std::string data_path)
+    {
+        const char* filename = data_path.data();
+        ifstream in(filename, ios_base::in);
+        std::string line;
+
+        while(getline(in,line))
+        {
+			cout << "line  is :" << line << endl;
+
+            stringstream ss(line);
+            string x;
+            int data_field = 0;
+            float input_float;
+            ss>>x;
+			cout << "106 is :" << x << endl;
+
+			bool t = false;
+            if(x=="transform_thresholding:")
+            {
+			    cout << "-----------"  << t << endl;
+				ss >> t;
+			    cout << "----112-------"  <<  t  << endl;
+
+				while ( (ss >> t) )
+				{
+				    cout << "-----------x is :" << t << endl;
+				}			
+				// else
+				    cout << "------117-----x is :" << t << endl;
+
+            }
+            else if (x=="max_w:")
+            {
+                data_field = 2;
+            }
+            else if (x=="xy_threshold:")
+            {
+                data_field = 3;
+            }
+            else if (x=="theta_threshold:")
+            {
+                data_field = 4;
+            }
+            else
+            {
+                continue;
+            }
+
+        }
+
+    }
+
+
 int main(int argc, char **argv)
 {
+// 	bool b;
+// 	string s1="1";'true' //zhiy 
+// istringstream(s1)>> boolalpha >> b;
+// cout<<boolalpha<<b<<endl;
+
+    return 0;
+    readNavParamsFromFile("/root/Desktop/r2/src/slam_param.yaml");
 
 int s = 0;
 for (size_t i = 0; i < 1500; i++)

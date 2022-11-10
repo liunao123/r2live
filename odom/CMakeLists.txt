@@ -129,10 +129,10 @@ target_link_libraries (${src_file}  ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
 # target_link_libraries (${src_file}  ${catkin_LIBRARIES} ${PCL_LIBRARIES})
 
 
-# SET(src_file optimize_map_gtsam)
-# add_executable (${src_file} src/${src_file}.cpp src/LaserLoopClosure.cc)
-# add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-# target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${GTSAM_LIBRARY_DIRS} libzlog.a)
+SET(src_file optimize_map_gtsam)
+add_executable (${src_file} src/${src_file}.cpp src/LaserLoopClosure.cc)
+add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${GTSAM_LIBRARY_DIRS} libzlog.a)
 
 
 SET(src_file optimize_map_gtsam_time)
@@ -151,9 +151,24 @@ add_executable (${src_file} src/${src_file}.cpp src/LaserLoopClosure_time_servic
 add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${GTSAM_LIBRARY_DIRS} libzlog.a)
 
+SET(src_file down_filtered_pcd)
+add_executable (${src_file} src/${src_file}.cpp src/LaserLoopClosure_time_service.cc)
+add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${GTSAM_LIBRARY_DIRS} libzlog.a)
+
 message(STATUS "------------gtsam :${gtsam}")
 message(STATUS "------------gtsam 2222 : ${GTSAM_LIBRARY_DIRS}")
 
+SET(src_file livox_to_pointcloud2)
+add_executable (${src_file} src/${src_file}.cpp )
+add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
+
+
+SET(src_file reproject_r2live_path)
+add_executable (${src_file} src/${src_file}.cpp )
+add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above

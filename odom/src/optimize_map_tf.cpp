@@ -76,17 +76,23 @@ geometry_msgs::PoseStamped to_PoseStamped(std::vector<double> v8)
 	p.pose.position.x = v8[1];
 	p.pose.position.y = v8[2];
 	p.pose.position.z = v8[3];
-	p.pose.orientation.x = v8[4];
-	p.pose.orientation.y = v8[5];
-	p.pose.orientation.z = v8[6];
-	p.pose.orientation.w = v8[7];
+	// p.pose.orientation.x = v8[4];
+	// p.pose.orientation.y = v8[5];
+	// p.pose.orientation.z = v8[6];
+	// p.pose.orientation.w = v8[7];
+
+		p.pose.orientation.w = v8[4];
+	p.pose.orientation.x = v8[5];
+	p.pose.orientation.y = v8[6];
+	p.pose.orientation.z = v8[7];
+
 	return p;
 }
 
 int main(int argc, char **argv)
 {
-	std::string work_dir = "/home/map/0805/";
-	// std::string work_dir = "/home/map/0805_big_imu_noise_pose_graph_0_0/";
+	// std::string work_dir = "/home/map/0805/";
+	std::string work_dir = "/home/map/0805_big_imu_noise_pose_graph_0_0/";
 
 	if (argc > 1)
 	{
@@ -167,7 +173,7 @@ int main(int argc, char **argv)
 	ofstream lio_optimized_path_file(work_dir + "lio_optimized_path.txt", ios::out);
 	int cnts_ = 0;
 
-	for (int i = 0; i < pcd_file.size(); i += 1)
+	for (int i = 0; i < pcd_file.size(); i += 10)
 	// for (int i = 154; i < 1570; i += 1 )
 	{
 		// 跳过中间没有回环的部分，直接看回环部分的点云
@@ -209,7 +215,7 @@ int main(int argc, char **argv)
 		else
 		{
 
-			cout << i << "th pcd : " << pcd_file[i] << endl;
+			cout << i << " th pcd : " << pcd_file[i] << endl;
 			for (size_t j = 0; j < loop_pose.size() - 1; j++)
 			{
 				double before_time = loop_pose[j].header.stamp.toSec();
@@ -281,13 +287,15 @@ int main(int argc, char **argv)
 					lio_optimized_path_file.precision(5);
 
 					lio_optimized_path_file
-						<< now_pcd_tans.x() << " "
-						<< now_pcd_tans.y() << " "
-						<< now_pcd_tans.z() << " "
-						<< now_pcd_rot.w() << " "
-						<< now_pcd_rot.x() << " "
-						<< now_pcd_rot.y() << " "
-						<< now_pcd_rot.z() << endl;
+						<< now_pcd_tans(0) << " "
+						<< now_pcd_tans(1) << " "
+						<< now_pcd_tans(2) << " "
+						<< lio_pose[i].pose.orientation.w << " "
+						<< lio_pose[i].pose.orientation.x << " "
+						<< lio_pose[i].pose.orientation.y << " "
+						<< lio_pose[i].pose.orientation.z << endl;
+
+					// continue;
 
 					// 根据上述 旋转和平移构造对应的 变换矩阵，把点云 投影过去即可。
 					pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>);
@@ -298,7 +306,7 @@ int main(int argc, char **argv)
 						int r = pcl::io::loadPCDFile<pcl::PointXYZI>(pcd_file[i], *cloud);
 						// pcl::PCDReader reader;
 						// int r = reader.read<pcl::PointXYZI>(pcd_file[i], *cloud);
-						std::cout << r << '\n';
+						// std::cout << r << '\n';
 					}
 					catch (const std::exception &e)
 					{
@@ -312,10 +320,10 @@ int main(int argc, char **argv)
 					pcl::PointCloud<pcl::PointXYZI>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZI>);
 					transformed_cloud->points.resize(cloud->points.size());
 
-					// static const Eigen::Vector3d Lidar_offset_to_IMU_temp(0.05512, 0.02226, 0.0297); // Horizon r2live
+					static const Eigen::Vector3d Lidar_offset_to_IMU_temp(0.05512, 0.02226, 0.0297); // Horizon r2live
 					// 官方 https://livox-wiki-cn.readthedocs.io/zh_CN/latest/introduction/Point_Cloud_Characteristics_and_Coordinate_System%20.html#id2
 					// static const Eigen::Vector3d Lidar_offset_to_IMU_temp(-0.0847, -0.0425, -0.0353); // -84.7，-42.5，-35.3 // one
-					static const Eigen::Vector3d Lidar_offset_to_IMU_temp(0.0847, 0.0425, 0.0353); // -84.7，-42.5，-35.3 // two
+					// static const Eigen::Vector3d Lidar_offset_to_IMU_temp(0.0847, 0.0425, 0.0353); // -84.7，-42.5，-35.3 // two
 					// static const Eigen::Vector3d Lidar_offset_to_IMU_temp(0.05512, 0.02226, 0.0297); // Horizon r2live three
 					//    static const Eigen::Vector3d Lidar_offset_to_IMU_temp(-0.05512, -0.02226, -0.0297); // Horizon r2live four
 					//    static const Eigen::Vector3d Lidar_offset_to_IMU_temp(0.0, 0.0, 0.0); //  zero
@@ -344,7 +352,7 @@ int main(int argc, char **argv)
 					(*map) += (*transformed_cloud);
 					viewer.showCloud(map);
 					boost::this_thread::sleep(boost::posix_time::microseconds(1));
-					break;
+					// break;
 				}
 			}
 		}
@@ -355,7 +363,7 @@ int main(int argc, char **argv)
 	cout << "--cnts_ ----DONE----- " << cnts_ << endl;
 	cout << " START WRITE PCD . " << endl;
 
-	return 0;
+	// return 0;
 
 	while (!viewer.wasStopped())
 	{

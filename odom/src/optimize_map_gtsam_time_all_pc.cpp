@@ -327,7 +327,7 @@ int main(int argc, char **argv)
 		cloud->header.frame_id = lio_pose[i].header.frame_id;
 		
 		// 保证每次的step不一样，这样不会每次都用同样的点云。更合理一点
-		step_len = rand()%2 + 3; //[3,4]  
+		step_len = rand()%2 + 1; //[3,4]  
     	// ROS_INFO("step_len : %d .",step_len );
 
 		if (llc.addPoseAndKeyScan(delta, cloud))

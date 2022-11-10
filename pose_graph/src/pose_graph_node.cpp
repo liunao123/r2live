@@ -474,12 +474,19 @@ int main(int argc, char **argv)
     posegraph.registerPub(n);
 
     // read param
-    n.getParam("visualization_shift_x", VISUALIZATION_SHIFT_X);
-    n.getParam("visualization_shift_y", VISUALIZATION_SHIFT_Y);
-    n.getParam("skip_cnt", SKIP_CNT);
-    n.getParam("skip_dis", SKIP_DIS);
+    // n.getParam("visualization_shift_x", VISUALIZATION_SHIFT_X);
+    // n.getParam("visualization_shift_y", VISUALIZATION_SHIFT_Y);
+    // n.getParam("skip_cnt", SKIP_CNT);
+    // n.getParam("skip_dis", SKIP_DIS);
     std::string config_file;
-    n.getParam("config_file", config_file);
+    // n.getParam("config_file", config_file);
+
+    VISUALIZATION_SHIFT_X = 0;
+    VISUALIZATION_SHIFT_Y = 0;
+    SKIP_CNT = 0;
+    SKIP_DIS = 0.5;
+    config_file = "/root/Desktop/r2/src/r2live/config/dh_cam.yaml";
+
     cv::FileStorage fsSettings(config_file, cv::FileStorage::READ);
     if(!fsSettings.isOpened())
     {

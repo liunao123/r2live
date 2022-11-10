@@ -155,3 +155,43 @@ td: -0.02                             # initial value of time offset. unit: s. r
 4、调研测试适用于livox的激光定位算法：之前的lidar_localizatuon之类的算法都是针对机械激光雷达设计的。livox_localization和fast_lio_localization是适用livox的。初步测试发现：
    前者需要指定一个较为精确的初始值，测试发现在rviz里指定一个大致的位置，程序很难重定位成功，后者则需要生成关键帧的scan context在定位时使用，目前在尝试生成我们自己的scan context。
 5、测试Livox-Mapping来生成点云对应的scan context，以及利用scancontext的开源代码测试生成定位用的文件。
+
+
+2022年10月17-21号工作汇总：
+手持建图工程化 60%
+1、地图优化与建图整合到一起，现在二者可以同时进行，不过目前运行的很慢，
+   主要是后期内存(pose_graph)占用很高。：// TODO 内存泄漏？
+   小一点的数据上测试，没有问题。较长的路线正在测试......
+   service call /end_gtsam {}
+
+手持定位 20%
+视觉激光融合：
+2、2D-3D-pose-tracking（https://github.com/Zumbalamambo/2D-3D-pose-tracking）依赖CUDA，
+   在测试没有GPU的情况下咋样。
+3、3D line detection部分代码运行成功；C:\Users\xf\Desktop\3d.png
+纯激光：
+4、livox_localization之前初始化较慢，甚至长时间不能重定位到正确的位置上，
+   猜测是目前利用keyframe生成的scan context密度小。(0.75m)。计划使用较密的scan context测试。
+
+定位：纯激光 + 短距离的里程计(长走廊环境)
+列检机器人，坑道环境（办公室走廊-定位功能做完之后）
+问题的复现：
+
+2022年10月24-28号工作汇总：
+1、利用valgrind工具排查，pose_graph有无内存泄露出现.不过很小，几kb的量级。
+   在测试其关键帧new出来后，手动delete，发现运行期间程序会挂掉。
+2、先大圈再小圈的建图路线，测试发现，在某些重复轨迹上，视觉也没有检测到回环，就很奇怪。
+3、livox_localization更改一些参数，以及加大scan contextd密度后（0.3m/个），可以进行重定位。
+   3.1 开始阶段重定位一旦收敛到准确的位置上，后面可以一直定位下去。建图和定位用同一段bag文件。发现定位结果在Z轴方向上存在一定的偏差。
+   3.2 当建图与定位不是同一个bag文件时，地图的动态变化部分，会使得定位有较大波动。
+   3.3 目前发现在某些位置上（视野开阔的地方），在5s左右可以重定位完成，而在某些位置上，会一直无法重定位成功。
+5、尝试给livox_localization添加一个手动重定位的功能，现在其可以收到在rviz里给出的位置，但重定位结果有问题，仍需测试。
+4、2D-3D-pose-tracking 里用到的 AFM ，需要cuda的库，暂时无法进行测试。
+   发现了一个非ros的视觉点云定位算法：https://github.com/hyye/dsl，也需要cuda。
+
+视觉组的电脑
+2022年11月01-11号工作汇总：
+1、定位的初始位姿，通过手动运行程序来指定，完成。
+2、基于点云地图的定位，尝试以r2live的视觉激光融合里程计来输出。
+3、手动指定一个精确的初始位姿+/r2live/path的pose，正在测试。
+4、ssl_slam2的角点+ 面点 正在测试。
