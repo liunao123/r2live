@@ -114,7 +114,7 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "loop_closure_gtsam");
 
   ros::NodeHandle nh;
-  message_filters::Subscriber<geometry_msgs::PoseStamped> sub_body_pose(nh, "/body_pose", 10);
+  message_filters::Subscriber<geometry_msgs::PoseStamped> sub_body_pose(nh, "/lidar_pose", 10);
   message_filters::Subscriber<sensor_msgs::PointCloud2> sub_surf_points(nh, "/livox_surf_point", 10);
 
   typedef sync_policies::ExactTime<geometry_msgs::PoseStamped, sensor_msgs::PointCloud2> MySyncPolicy;

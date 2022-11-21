@@ -190,8 +190,58 @@ td: -0.02                             # initial value of time offset. unit: s. r
    发现了一个非ros的视觉点云定位算法：https://github.com/hyye/dsl，也需要cuda。
 
 视觉组的电脑
-2022年11月01-11号工作汇总：
-1、定位的初始位姿，通过手动运行程序来指定，完成。
+2022年11月01-11号，手持导航平台工作汇总：
+1、定位的初始位姿，通过手动运行程序来指定。
+   初始位姿是通过：livox_localization中的scan context来获取的。然后通过“/initialpose”发布出去。完成
+
 2、基于点云地图的定位，尝试以r2live的视觉激光融合里程计来输出。
-3、手动指定一个精确的初始位姿+/r2live/path的pose，正在测试。
-4、ssl_slam2的角点+ 面点 正在测试。
+   基于1：手动指定一个精确的初始位姿，将r2live前端里程计的起点转换到初始位姿上。从上述位姿开始建图，同时也得到了基于地图的位姿。完成
+   
+   以上述方式得到的，存在2个问题：1：过分依赖初始值；2：r2live的原始里程计的精度是什么样就什么样，无法得到改善。
+
+3、ssl_slam2（intel的固态激光雷达）的角点+ 面点 正在测试。
+   目前从地图中分离 角点 和 面点 有问题，感觉提取之后就不再是点云了。
+
+后期工作：
+1、下周调研确定：全局定位算法（scan context or icp or 粒子滤波 ...... ）确定用什么
+2、r2live前端里程计 测试稳定下来，短时间内的里程计要稳定。
+//TODO: 二者结合
+
+
+2022年11月14-18号
+1、点云相似度的库：https://github.com/Dongxu05/CSSC
+   在没有指定初始值的情况下比GICP快很多
+
+需要GPU
+2、基于分割的定位算法：https://github.com/ethz-asl/segmap
+3、深度学习定位算法： 
+             https://github.com/PRBonn/overlap_localization
+             https://github.com/PRBonn/range-mcl
+             https://github.com/JuanDuGit/DH3D
+
+纯激光的定位定位算法：
+4、全局重定位的算法 : https://github.com/koide3/hdl_global_localization
+                    https://github.com/koide3/hdl_localization
+   在机械雷达下，可以实现全局定位功能，有图
+   livox雷达，全局定位不行，给定初始位姿，收敛的很快，计算速度也可以跟上
+   
+   
+5、https://github.com/carlosmccosta/dynamic_robot_localization
+   利用 livox 激光数据进行测试，发现：
+   1：tf tree是完整的，但是定位位姿没有输出
+   2：所指定的初始位姿，没有起作用，会强制从原点可以定位。
+   3：需要一个里程计数据，现在是通过r2live给出的
+
+6、r2live的简化成前端里程计，现在单独形成一个节点，输出位姿，配合其他节点一起使用。
+   1；r2live_locate 前端
+   2: publish_initial_pose.py 发送初始值
+   3：reprject_r2live_path 根据初始位姿，将r2live的位姿变换过去。
+
+后续计划：
+   1、实验室建图：原来的定位方式，对比现在的定位咋样，
+   室外，合肥场地试一下。
+      
+   手持建图 + 机器人定位
+   
+   
+   室外：手持建图 + 手持定位可以用

@@ -193,7 +193,7 @@ public:
     ros::Publisher pubOdomAftMapped;
     ros::Publisher pubPath;
 
-    ros::Publisher pubBodyPose;
+    ros::Publisher pubLidarPose;
     ros::Publisher pubSurfPoint;
 
     ros::Subscriber sub_pcl;
@@ -221,8 +221,6 @@ public:
     void SigHandle(int sig)
     {
         flg_exit = true;
-        ROS_ERROR("22222222222-0 6end");
-
         ROS_WARN("catch sig %d", sig);
         sig_buffer.notify_all();
     }
@@ -852,7 +850,7 @@ public:
 
         lio_path_file.open("/home/map/lio_path.txt", ios::out);
 
-        pubBodyPose = nh.advertise<geometry_msgs::PoseStamped>("/body_pose", 10);
+        pubLidarPose = nh.advertise<geometry_msgs::PoseStamped>("/lidar_pose", 10);
         pubSurfPoint = nh.advertise<sensor_msgs::PointCloud2>("/livox_surf_point", 10);
 
         // m_lio_state_fp = fopen("/home/ziv/temp/lic_lio.log", "w+");
@@ -1721,7 +1719,13 @@ public:
 #endif
 
                 // to publish imu pose, add by ln 20221019,
-                pubBodyPose.publish(msg_body_pose);
+                // pubLidarPose.publish(msg_body_pose);
+                
+                // to publish ----lidar---- pose, add by ln 20221121,
+                msg_body_pose.pose.position.x += Lidar_offset_to_IMU[0];
+                msg_body_pose.pose.position.y += Lidar_offset_to_IMU[1];
+                msg_body_pose.pose.position.z += Lidar_offset_to_IMU[2];
+                pubLidarPose.publish(msg_body_pose);
 
                 /******* Publish Path ********/
                 msg_body_pose.header.frame_id = "world";
