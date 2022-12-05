@@ -721,7 +721,7 @@ void process()
                         (t_add.norm() < 0.5) &&
                         (mean_reprojection_error < 1.0))
                     {
-                        std::cout << __FILE__ << ":" << __LINE__ << " enter : update g_lio_state ." << std::endl;
+                        // std::cout << __FILE__ << ":" << __LINE__ << " enter : update g_lio_state ." << std::endl;
                         g_lio_state = state_aft_integration;
                         eigen_q q_I = eigen_q(1.0, 0, 0, 0);
                         double angular_diff = eigen_q(g_lio_state.rot_end.transpose() * state_before_esikf.rot_end).angularDistance(q_I) * 57.3;

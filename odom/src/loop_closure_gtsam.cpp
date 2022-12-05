@@ -73,6 +73,7 @@ void add_pose_and_scan_to_gtsam_callback(const geometry_msgs::PoseStampedConstPt
     keyframe_cnts++;
   }
   // cout << "keyframe_cnts is : " << keyframe_cnts << endl;
+  ROS_INFO("keyframe_cnts is : %d .", keyframe_cnts);
 }
 
 bool startLoopDetect(odom::LoopTimePair::Request &req, odom::LoopTimePair::Response &res)
@@ -87,6 +88,8 @@ bool endGtsamProcess(std_srvs::Trigger::Request &req, std_srvs::Trigger::Respons
   dzlog_info(" start to save map .then exit gtsam loop optimize process .");
   llc.saveMap();
   Exit_this = true;
+  res.success = true;
+  res.message = "end gtsam .";
   return true;
 }
 

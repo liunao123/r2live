@@ -75,9 +75,6 @@ void printStatistics(const Estimator &estimator, double t)
 
         if (ESTIMATE_EXTRINSIC)
         {
-            ROS_WARN_STREAM("extirnsic tic: " << estimator.tic[i].transpose());
-            ROS_WARN_STREAM("extrinsic ric: " << Utility::R2ypr(estimator.ric[i]).transpose());
-
             cv::FileStorage fs(EX_CALIB_RESULT_PATH, cv::FileStorage::WRITE);
             Eigen::Matrix3d eigen_R;
             Eigen::Vector3d eigen_T;
@@ -88,6 +85,9 @@ void printStatistics(const Estimator &estimator, double t)
             cv::eigen2cv(eigen_T, cv_T);
             fs << "extrinsicRotation" << cv_R << "extrinsicTranslation" << cv_T;
             fs.release();
+            ROS_WARN_STREAM("extirnsic tic: " << estimator.tic[i].transpose());
+            ROS_WARN_STREAM("extrinsic ric: " << Utility::R2ypr(estimator.ric[i]).transpose());
+            std::cout << "extrinsic ric is write to " << EX_CALIB_RESULT_PATH << std::endl;
         }
     }
 
