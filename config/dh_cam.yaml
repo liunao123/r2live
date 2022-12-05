@@ -36,25 +36,26 @@ extrinsicRotation: !!opencv-matrix
    rows: 3
    cols: 3
    dt: d
-   data: [-1.3765103766088194e-02, -1.3793124636240550e-02,
-       9.9981011778791196e-01, -9.9989203823285111e-01,
-       5.3312580260221898e-03, -1.3692682951667812e-02,
-       -5.1413808323983456e-03, -9.9989065772244790e-01,
-       -1.3865020826062446e-02]
-
+#    data: [-1.3765103766088194e-02, -1.3793124636240550e-02, 9.9981011778791196e-01, 
+#         -9.9989203823285111e-01, 5.3312580260221898e-03, -1.3692682951667812e-02,
+#        -5.1413808323983456e-03, -9.9989065772244790e-01,-1.3865020826062446e-02]
+   data: [-0.0071588, -0.0045385, 0.9999641,
+          -0.9999744, -0.0000722, -0.0076562,
+          0.0001047,  -0.9999897, -0.0045378]
 
 #Translation from camera frame to imu frame, imu^T_cam
 extrinsicTranslation: !!opencv-matrix
    rows: 3
    cols: 1
    dt: d
-   data: [0.02 , -0.02 , 0.14]
+#    data: [0.02 , -0.02 , 0.14]
+   data: [0.04 , 0.04 , 0.07]
 
    
 #feature traker paprameters
 max_cnt: 150           # max feature number in feature tracking
 min_dist: 30            # min distance between two features 
-freq: 10                 # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
+freq: 5                 # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
 F_threshold: 1.0 #1.0        # ransac threshold (pixel)
 show_track: 1           # publish tracking image as topic
 equalize: 1             # if image is too dark or light, trun on equalize to find enough features
@@ -82,7 +83,7 @@ pose_graph_save_path: "/home/map/pose_graph_result/" # save and load path
 
 #unsynchronization parameters
 estimate_td: 0                        # online estimate time offset between camera and imu
-td: 0.01                             # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
+td: 0.018                             # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
 
 #rolling shutter parameters
 rolling_shutter: 0                  # 0: global shutter camera, 1: rolling shutter camera
