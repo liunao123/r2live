@@ -130,9 +130,9 @@ bool check_state(StatesGroup &state_inout)
     {
       is_fail = true;
       scope_color(ANSI_COLOR_RED_BG);
-      for (int i = 0; i < 10; i++)
+      for (int i = 0; i < 2; i++)
       {
-        cout << __FILE__ << ", " << __LINE__ << ", check_state fail !!!! " << state_inout.vel_end.transpose() << endl;
+        cout << __FILE__ << ":" << __LINE__ << ", check_state fail !!!! " << state_inout.vel_end.transpose() << endl;
       }
       state_inout.vel_end(idx) = 0.0;
     }

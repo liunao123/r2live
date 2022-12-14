@@ -148,8 +148,8 @@ void Estimator::processIMU(double dt, const Vector3d &linear_acceleration, const
 }
 
 void Estimator::solve_image_pose(const std_msgs::Header &header)
-{
-     if(ESTIMATE_EXTRINSIC == 2)
+{  
+    if(ESTIMATE_EXTRINSIC == 2)
     {
         ROS_INFO("calibrating extrinsic param, rotation movement is needed");
         if (frame_count != 0)
@@ -201,24 +201,47 @@ void Estimator::solve_image_pose(const std_msgs::Header &header)
     else
     {
         TicToc t_solve;
+
+        // ros::Time s_t = ros::Time::now();
         solveOdometry();
-        ROS_DEBUG("Odom solver costs: %fms", t_solve.toc());
+        // ROS_WARN("solveOdometry use time is %lf  ms",  ( ros::Time::now() - s_t).toSec() * 1000  ) ;
+
+        // ROS_DEBUG("Odom solver costs: %fms", t_solve.toc());
+
+
         if (failureDetection())
         {
+            ros::param::set("/hdl_localization_nodelet/enable_robot_odometry_prediction", false);
+            ROS_ERROR("set enable_robot_odometry_prediction param in r2live--------false .and restart r2live node . ");
+            system("rosnode kill /r2live");
+
             ROS_WARN("failure detection!");
             failure_occur = 1;
             clearState();
             setParameter();
             ROS_WARN("system reboot!");
             g_camera_lidar_queue.m_visual_init_time = 3e88; // Set state as uninitialized.
-            g_camera_lidar_queue.m_camera_imu_td = 0;
+            g_camera_lidar_queue.m_camera_imu_td = 0;            
             return;
+        }
+        else
+        {
+            // static int ok_cnts = 1;
+            // ok_cnts++;
+            // if(ok_cnts > 20 )
+            // {
+                ros::param::set("/hdl_localization_nodelet/enable_robot_odometry_prediction", true);
+                // ROS_INFO("set param in r2live--------true : ok_cnts %d ", ok_cnts);
+            // }
         }
 
         TicToc t_margin;
+        TicToc t_sw;
         slideWindow();
+        // ROS_WARN("whole slideWindow costs: %fms", t_sw.toc());
+
         f_manager.removeFailures();
-        ROS_DEBUG("whole marginalization costs: %fms", t_margin.toc());
+        // ROS_WARN("whole marginalization costs: %fms", t_margin.toc());
         // prepare output of VINS
         key_poses.clear();
         for (int i = 0; i <= WINDOW_SIZE; i++)
@@ -316,7 +339,7 @@ bool Estimator::initialStructure()
               relative_R, relative_T,
               sfm_f, sfm_tracked_points))
     {
-        ROS_DEBUG("global SFM failed!");
+        ROS_ERROR("global SFM failed!");
         marginalization_flag = MARGIN_OLD;
         return false;
     }
@@ -511,6 +534,7 @@ bool Estimator::relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l)
             }
         }
     }
+    ROS_ERROR("relativePose false...... WINDOW_SIZE is %d, ", WINDOW_SIZE);
     return false;
 }
 
@@ -521,10 +545,15 @@ void Estimator::solveOdometry()
     if (solver_flag == NON_LINEAR)
     {
         TicToc t_tri;
+
         f_manager.triangulate(Ps, tic, ric);
-        ROS_DEBUG("triangulation costs %f", t_tri.toc());
+        // ROS_WARN("triangulation costs %f", t_tri.toc());
+
         // ANCHOR - using optimization
+        TicToc t_lm;
         optimization_LM();
+        // ROS_WARN("optimization_LM costs %f", t_lm.toc());
+
     }
 }
 
@@ -564,7 +593,17 @@ void Estimator::vector2double()
         m_para_Ex_Pose[i][4] = q.y();
         m_para_Ex_Pose[i][5] = q.z();
         m_para_Ex_Pose[i][6] = q.w();
+
     }
+
+
+    for (int i = 0; i <  6; i++)
+    {
+ //std::cout  << __FILE__ << ": " << __LINE__ << m_para_Ex_Pose[0][i] << std::endl<< std::endl;
+
+    }
+  
+
 
     VectorXd dep = f_manager.getDepthVector();
     for (int i = 0; i < f_manager.getFeatureCount(); i++)
@@ -620,6 +659,7 @@ void Estimator::double2vector()
         Bgs[i] = Vector3d(m_para_SpeedBias[i][6],
                           m_para_SpeedBias[i][7],
                           m_para_SpeedBias[i][8]);
+
     }
 
     for (int i = 0; i < NUM_OF_CAM; i++)
@@ -638,7 +678,10 @@ void Estimator::double2vector()
         dep(i) = m_para_Feature[i][0];
     f_manager.setDepth(dep);
     if (ESTIMATE_TD)
+    {
         td = m_para_Td[0][0];
+        ROS_WARN("ESTIMATE_TD is: %f ", td);
+    }
 
     // relative info between two loop frame
     if(relocalization_info)
@@ -671,7 +714,7 @@ bool Estimator::failureDetection()
         ROS_INFO(" little feature %d", f_manager.last_track_num);
         return true;
     }
-    if (Bas[WINDOW_SIZE].norm() > 1.0)
+    if (Bas[WINDOW_SIZE].norm() > 2.5)
     {
         ROS_INFO(" big IMU acc bias estimation %f", Bas[WINDOW_SIZE].norm());
         return true;
@@ -682,14 +725,14 @@ bool Estimator::failureDetection()
         return true;
     }
 
-    if( (tic[0] - READ_TIC[0]).norm() > 1.0 )
+    if( (tic[0] - READ_TIC[0]).norm() > 1.0 * 3 )
     {
         ROS_INFO(" big Extrinsic T error %f", (tic[0] - TIC[0]).norm());
         return true;
     }
 
     double ext_R_diff = Eigen::Quaterniond(ric[0]).angularDistance(Eigen::Quaterniond(READ_RIC[0])) * 57.3;
-    if (ext_R_diff > 20)
+    if (ext_R_diff > 20 * 2)
     {
         ROS_INFO(" big Extrinsic R error %f", ext_R_diff);
         return true;
@@ -703,12 +746,12 @@ bool Estimator::failureDetection()
     Vector3d tmp_P = Ps[WINDOW_SIZE];
     if ((tmp_P - last_P).norm() > 2.0)
     {
-        ROS_INFO(" big translation");
+        ROS_INFO(" big translation: %f", (tmp_P - last_P).norm());
         return true;
     }
     if (abs(tmp_P.z() - last_P.z()) > 2.0)
     {
-        ROS_INFO(" big z translation");
+        ROS_INFO(" big z translation :%f ",  abs(tmp_P.z() - last_P.z()));
         return true; 
     }
     Matrix3d tmp_R = Rs[WINDOW_SIZE];
@@ -718,7 +761,7 @@ bool Estimator::failureDetection()
     delta_angle = acos(delta_Q.w()) * 2.0 / 3.14 * 180.0;
     if (delta_angle > 20)
     {
-        ROS_INFO(" big delta_angle ");
+        ROS_INFO(" big delta_angle :%f ",delta_angle );
         return true;
     }
     return false;

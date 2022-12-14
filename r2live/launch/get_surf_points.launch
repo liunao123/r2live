@@ -1,0 +1,12 @@
+<launch>
+
+    <!-- static const Eigen::Vector3d Lidar_offset_to_IMU(0.05512, 0.02226, 0.0297); // Horizon -->
+    <!-- livox雷达 imu 与 激光的相对位置 -->
+    <node pkg="tf" type="static_transform_publisher" name="tf_imu_lidar" args="-0.05512 -0.02226 -0.0297 0 0 0 livox livox_frame 50"/>
+
+    <!-- r2live 特征点提取节点 -->
+    <rosparam command="load" file="$(find r2live)/../config/lio_config.yaml" />
+    <node pkg="r2live" type="lio_feat_extract" name="lio_feat_extract"  output="log">
+    </node>    
+
+</launch>

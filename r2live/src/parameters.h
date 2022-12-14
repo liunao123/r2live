@@ -9,7 +9,8 @@
 #include <fstream>
 
 const double FOCAL_LENGTH = 433.0;
-const int WINDOW_SIZE = 7;
+
+const int WINDOW_SIZE = 7; //7
 const int NUM_OF_CAM = 1;
 const int NUM_OF_F = 1000;
 //#define UNIT_SPHERE_ERROR

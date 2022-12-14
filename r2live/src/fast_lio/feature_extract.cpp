@@ -101,18 +101,18 @@ int main(int argc, char **argv)
   {
   case MID:
     printf("MID40\n");
-    sub_points = n.subscribe("/livox/lidar", 1000, mid_handler,ros::TransportHints().tcpNoDelay());
+    sub_points = n.subscribe("/livox/lidar", 100000, mid_handler,ros::TransportHints().tcpNoDelay());
     // sub_points = n.subscribe("/livox/lidar_1LVDG1S006J5GZ3", 1000, mid_handler);
     break;
 
   case HORIZON:
     printf("HORIZON\n");
-    sub_points = n.subscribe("/livox/lidar", 1000, horizon_handler,ros::TransportHints().tcpNoDelay());
+    sub_points = n.subscribe("/livox/lidar", 100000, horizon_handler,ros::TransportHints().tcpNoDelay());
     break;
 
   case VELO16:
     printf("VELO16\n");
-    sub_points = n.subscribe("/velodyne_points", 1000, velo16_handler,ros::TransportHints().tcpNoDelay());
+    sub_points = n.subscribe("/velodyne_points", 100000, velo16_handler,ros::TransportHints().tcpNoDelay());
     break;
 
   case OUST64:
@@ -231,6 +231,8 @@ void horizon_handler(const livox_ros_driver::CustomMsg::ConstPtr &msg)
   ct.fromNSec(msg->timebase);
   pub_func(pl_full, pub_full, msg->header.stamp);
   pub_func(pl_surf, pub_surf, msg->header.stamp);
+  ROS_INFO("pl_surf time is : %lf ", msg->header.stamp.toSec());
+
   pub_func(pl_corn, pub_corn, msg->header.stamp);
   std::cout<<"[~~~~~~~~~~~~ Feature Extract ]: time: "<< omp_get_wtime() - t1<<" "<<msg->header.stamp.toSec()<<std::endl;
 }
@@ -771,30 +773,30 @@ void give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &types, pcl::P
   }
 
 
-  // int last_surface = 0;
-  // for(uint i=0; i<plsize; i++)
-  // {
-  //   if(types[i].ftype==Poss_Plane || types[i].ftype==Real_Plane)
-  //   {
-  //     if(last_surface == 0)
-  //     {
-  //       pl_surf.push_back(pl[i]);
-  //       last_surface = 1;
-  //     }
-  //     else
-  //     {
-  //       last_surface = 0;
-  //     }
+  int last_surface = 0;
+  for(uint i=0; i<plsize; i++)
+  {
+    if(types[i].ftype==Poss_Plane || types[i].ftype==Real_Plane)
+    {
+      if(last_surface == 0)
+      {
+        pl_surf.push_back(pl[i]);
+        last_surface = 1;
+      }
+      else
+      {
+        last_surface = 0;
+      }
       
-  //   }
-  //   else if(types[i].ftype==Edge_Jump || types[i].ftype==Edge_Plane)
-  //   {
-  //     pl_corn.push_back(pl[i]);
-  //   }
+    }
+    else if(types[i].ftype==Edge_Jump || types[i].ftype==Edge_Plane)
+    {
+      pl_corn.push_back(pl[i]);
+    }
 
-  // }
+  }
 
-  int last_surface = -1;
+  last_surface = -1;
   for(uint j=head; j<plsize; j++)
   {
     if(types[j].ftype==Poss_Plane || types[j].ftype==Real_Plane)

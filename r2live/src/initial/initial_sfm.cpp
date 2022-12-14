@@ -120,6 +120,7 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 {
 	feature_num = sfm_f.size();
 	//cout << "set 0 and " << l << " as known " << endl;
+//printf("initial_sfm.cpp 123 feature_num : %d  \r\n", feature_num);
 	// have relative_r relative_t
 	// intial two view
 	q[l].w() = 1;
@@ -272,19 +273,26 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 
 	}
 	ceres::Solver::Options options;
-	options.linear_solver_type = ceres::DENSE_SCHUR;
+	//options.linear_solver_type = ceres::DENSE_SCHUR;
 	//options.minimizer_progress_to_stdout = true;
-	options.max_solver_time_in_seconds = 0.2;
+	//options.max_solver_time_in_seconds = 0.2;
+
+        options.max_solver_time_in_seconds = 0.3;
+   options.max_num_iterations = 100;
+options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+//options.dense_linear_algebra_library_type = ceres::LAPACK;
+
 	ceres::Solver::Summary summary;
 	ceres::Solve(options, &problem, &summary);
-	//std::cout << summary.BriefReport() << "\n";
+	std::cout << summary.BriefReport() << "\n";
+	//if (summary.termination_type == ceres::CONVERGENCE || summary.final_cost < 5e-03)
 	if (summary.termination_type == ceres::CONVERGENCE || summary.final_cost < 5e-03)
 	{
-		//cout << "vision only BA converge" << endl;
+		cout << "vision only BA converge" << endl;
 	}
 	else
 	{
-		//cout << "vision only BA not converge " << endl;
+		cout << "vision only BA not converge " << endl;
 		return false;
 	}
 	for (int i = 0; i < frame_num; i++)

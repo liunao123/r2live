@@ -136,6 +136,7 @@ std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>, sensor_msgs::PointC
         IMUs.emplace_back(imu_buf.front());
         if (IMUs.empty())
             ROS_WARN("no imu between two image");
+
         measurements.emplace_back(IMUs, img_msg);
     }
     return measurements;
@@ -165,6 +166,11 @@ void imu_callback(const sensor_msgs::ImuConstPtr &_imu_msg)
 
     m_buf.lock();
     imu_buf.push(imu_msg);
+    // if(imu_buf.size() % 20 == 0)
+    // {
+    //     std::cout << "VIO imu size : " << imu_buf.size() << std::endl;
+    //     // ROS_WARN("VIO");
+    // }
     m_buf.unlock();
     con.notify_one();
 
@@ -191,6 +197,8 @@ void feature_callback(const sensor_msgs::PointCloudConstPtr &feature_msg)
 
     m_buf.lock();
     feature_buf.push(feature_msg);
+    // std::cout << " feature_msg num is : " << feature_msg->points.size() << std::endl;
+
     m_buf.unlock();
     con.notify_one();
 }
@@ -218,7 +226,7 @@ void restart_callback(const std_msgs::BoolConstPtr &restart_msg)
 
 void relocalization_callback(const sensor_msgs::PointCloudConstPtr &points_msg)
 {
-    //printf("relocalization callback! \n");
+    ROS_WARN("detect_loop_closure , to relocalization callback! \n");
     m_buf.lock();
     relo_buf.push(points_msg);
     m_buf.unlock();
@@ -244,6 +252,7 @@ void lock_lio(Estimator &estimator)
 // ANCHOR - sync lio to cam
 void sync_lio_to_vio(Estimator &estimator)
 {
+    //ROS_ERROR("lio check state");
     check_state(g_lio_state);
     int frame_idx = estimator.frame_count;
     frame_idx = WINDOW_SIZE;
@@ -440,8 +449,37 @@ void process()
 
         g_camera_lidar_queue.m_last_visual_time = -3e8;
         TicToc t_s;
+
+        // 限制耗时
+        // 每帧图像特征点耗时 0.2s ,这样就保证每次取 5 帧。 保证在1s内处理完，同时，回调函数的缓存里也只有5个左右
+        // int step = 1; 
+
+        // ros::param::set("/hdl_localization_nodelet/enable_roboenable_odomt_odometry_prediction", true);        
+        bool enable_odom = true;
+        ros::param::get("/hdl_localization_nodelet/enable_roboenable_odomt_odometry_prediction", enable_odom );
+        if( enable_odom )
+        {
+        while ( measurements.size() > 5 )
+        {
+            static int drop_feature = 0;
+            ROS_WARN("erase iamge fea --------  %ld -----------------------%ld ", measurements.size() , ++drop_feature );
+
+            // static std::ofstream ofs;
+            // ofs.open( "/home/liunao/erase_iamge_feature.txt", std::ios::app);
+            // ofs << "erase_iamge_feature: " << std::to_string( drop_feature ) << std::endl;
+            // ofs.close();
+
+            measurements.erase(measurements.begin());
+            ROS_WARN(" measurements size is %ld", measurements.size() );
+        }
+        }
+
         for (auto &measurement : measurements)
         {
+            // std::cout << "step is: " << step << ", index is: " << index << "  , measurements.size() is :" << measurements.size() << std::endl;
+            // auto measurement = measurements[index];
+            // ros::Time s_t = ros::Time::now();
+
             auto img_msg = measurement.second;
             int if_camera_can_update = 1;
             double cam_update_tim = img_msg->header.stamp.toSec() + estimator.td;
@@ -459,13 +497,14 @@ void process()
                 lock_lio(estimator);
                 t_s.tic();
                 double camera_LiDAR_tim_diff = img_msg->header.stamp.toSec() + g_camera_lidar_queue.m_camera_imu_td - g_lio_state.last_update_time;
-            *p_imu = *(estimator.m_fast_lio_instance->m_imu_process);
+                *p_imu = *(estimator.m_fast_lio_instance->m_imu_process);
             }
 
             if ((g_camera_lidar_queue.m_if_lidar_can_start == true) && (g_camera_lidar_queue.m_lidar_drag_cam_tim >= 0))
             {
                 m_state.lock();
                 sync_lio_to_vio(estimator);
+    
                 m_state.unlock();
             }
             double dx = 0, dy = 0, dz = 0, rx = 0, ry = 0, rz = 0;
@@ -510,6 +549,8 @@ void process()
                 }
             }
             // set relocalization frame
+
+            /* 
             sensor_msgs::PointCloudConstPtr relo_msg = NULL;
             while (!relo_buf.empty())
             {
@@ -536,7 +577,9 @@ void process()
                 frame_index = relo_msg->channels[0].values[7];
                 estimator.setReloFrame(frame_stamp, frame_index, match_points, relo_t, relo_r);
             }
-
+            
+            */
+            
             ROS_DEBUG("processing vision data with stamp %f \n", img_msg->header.stamp.toSec());
 
             std::deque<sensor_msgs::Imu::ConstPtr> imu_queue;
@@ -621,7 +664,7 @@ void process()
             //Step 1: IMU preintergration
             StatesGroup state_prediction = state_aft_integration;
 
-            // //Step 3: ESIKF udpate.
+            //Step 3: ESIKF udpate.
             double mean_reprojection_error = 0.0;
             int minmum_number_of_camera_res = 10;
             
@@ -632,7 +675,6 @@ void process()
             {
                 estimator.vector2double();
                 estimator.f_manager.triangulate(estimator.Ps, estimator.tic, estimator.ric);
-
                 double deltaR = 0, deltaT = 0;
                 int flg_EKF_converged = 0;
                 Eigen::Matrix<double, DIM_OF_STATES, 1> solution;
@@ -660,7 +702,6 @@ void process()
                     estimator.m_para_Pose[win_idx][6] = q_pose_last.w();
                     // estimator.f_manager.removeFailures();
                     construct_camera_measure(win_idx, estimator, reppro_err_vec, J_mat_vec);
-
                     if (reppro_err_vec.size() < minmum_number_of_camera_res)
                     {
                         cout << "Size of reppro_err_vec: " << reppro_err_vec.size() << endl;
@@ -719,6 +760,7 @@ void process()
                         (t_add.norm() < 0.5) &&
                         (mean_reprojection_error < 1.0))
                     {
+                        // std::cout << __FILE__ << ":" << __LINE__ << " enter : update g_lio_state ." << std::endl;
                         g_lio_state = state_aft_integration;
                         eigen_q q_I = eigen_q(1.0, 0, 0, 0);
                         double angular_diff = eigen_q(g_lio_state.rot_end.transpose() * state_before_esikf.rot_end).angularDistance(q_I) * 57.3;
@@ -726,6 +768,7 @@ void process()
                         if ((t_diff > 0.2) || (angular_diff > 2.0))
                         {
                             g_lio_state = state_before_esikf;
+
                         }
                         // Unblock lio process, publish esikf state.
                         // TODO: publish esikf state.
@@ -737,9 +780,15 @@ void process()
             }
 
             // Update state with pose graph optimization 
-            g_lio_state = state_before_esikf;
+
+
+            //g_lio_state = state_before_esikf;
+           
             t_s.tic();
+    
+            // s_t = ros::Time::now();
             estimator.solve_image_pose(img_msg->header);
+              // ROS_WARN(" use time is %lf  ms",  ( ros::Time::now() - s_t).toSec() * 1000  ) ;
 
             if (g_camera_lidar_queue.m_if_have_lidar_data)
             {
@@ -795,7 +844,9 @@ void process()
             unlock_lio(estimator);
             m_state.lock();
             double whole_t = t_s.toc();
-            printStatistics(estimator, whole_t);
+
+            // printStatistics(estimator, whole_t);
+            
             header = img_msg->header;
             header.frame_id = "world";
   
@@ -805,18 +856,22 @@ void process()
             }
             else
             {
+                // 进入这个 分支
                 pub_LiDAR_Odometry(estimator, state_aft_integration, header);
             }
-            pubCameraPose(estimator, header);
-            pubKeyPoses(estimator, header);
-            pubPointCloud(estimator, header);
+            // pubCameraPose(estimator, header);
+            // pubKeyPoses(estimator, header);
+            // pubPointCloud(estimator, header);// 视觉的点云
             pubTF(estimator, header);
-            pubKeyframe(estimator);
+            // pubKeyframe(estimator);
             m_state.unlock();
-            if (relo_msg != NULL)
-            {
-                pubRelocalization(estimator);
-            }
+            // if (relo_msg != NULL)
+            // {
+            //     pubRelocalization(estimator);
+            // }
+            
+            // ros::Time end_vio = ros::Time::now();
+            // ROS_ERROR("vio use time is %f ", (end_vio - s_t).toSec()  );
         }
 
         m_estimator.unlock();
@@ -824,11 +879,13 @@ void process()
         m_state.lock();
         if (estimator.solver_flag == Estimator::SolverFlag::NON_LINEAR)
         {
-                update();
+            update();
         }
         m_state.unlock();
         m_buf.unlock();
+    
     }
+
 }
 
 int main(int argc, char **argv)
@@ -863,13 +920,17 @@ int main(int argc, char **argv)
 
     registerPub(nh);
 
-    ros::Subscriber sub_imu = nh.subscribe(IMU_TOPIC, 20000, imu_callback, ros::TransportHints().tcpNoDelay());
-    ros::Subscriber sub_image = nh.subscribe("/feature_tracker/feature", 20000, feature_callback, ros::TransportHints().tcpNoDelay());
-    ros::Subscriber sub_restart = nh.subscribe("/feature_tracker/restart", 20000, restart_callback, ros::TransportHints().tcpNoDelay());
-    ros::Subscriber sub_relo_points = nh.subscribe("/pose_graph/match_points", 20000, relocalization_callback, ros::TransportHints().tcpNoDelay());
+    ros::Subscriber sub_imu = nh.subscribe(IMU_TOPIC, 1000, imu_callback, ros::TransportHints().tcpNoDelay());
+    ros::Subscriber sub_image = nh.subscribe("/feature_tracker/feature", 1000, feature_callback, ros::TransportHints().tcpNoDelay());
+    // ros::Subscriber sub_restart = nh.subscribe("/feature_tracker/restart", 20000, restart_callback, ros::TransportHints().tcpNoDelay());
+    // ros::Subscriber sub_relo_points = nh.subscribe("/pose_graph/match_points", 20000, relocalization_callback, ros::TransportHints().tcpNoDelay());
 
     std::thread measurement_process{process};
     ros::spin();
+
+    // add by ln 20220712 , for enter ~fast_lio() to save pcd file when exit;
+    delete estimator.m_fast_lio_instance;
+    std::cout << " END " << std::endl;
 
     return 0;
 }

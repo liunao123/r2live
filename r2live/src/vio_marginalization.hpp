@@ -99,6 +99,7 @@ class vio_marginalization
         Amm = 0.5 * (res_hessian.block(0, 0, m, m) + res_hessian.block(0, 0, m, m).transpose());
         // Amm_inv = Amm.fullPivHouseholderQr().solve(Imm);
         // Amm_inv = Amm.colPivHouseholderQr().solve(Imm);
+
         Amm_inv = Amm.ldlt().solve( Eigen::MatrixXd::Identity( m, m ) );
 
         Eigen::SparseMatrix< double > bmm = res_residual.segment( 0, m ).sparseView();
@@ -114,6 +115,7 @@ class vio_marginalization
         A = ( Arr - Arm_Amm_inv * Amr ).toDense();
         b = ( brr - Arm_Amm_inv * bmm ).toDense();
         m_linearized_jacobians = A.llt().matrixL().transpose();
+
         // m_linearized_residuals = m_linearized_jacobians.transpose().fullPivHouseholderQr().solve( b );
         // m_linearized_residuals = m_linearized_jacobians.transpose().completeOrthogonalDecomposition().solve( b );
         // if ( ( ( m_linearized_jacobians.transpose() * m_linearized_residuals ).isApprox( b, 1e-5 ) == false ) ||
@@ -134,6 +136,7 @@ class vio_marginalization
             m_linearized_jacobians = S_sqrt.asDiagonal() * saes2.eigenvectors().transpose();
             m_linearized_residuals = S_inv_sqrt.asDiagonal() * saes2.eigenvectors().transpose() * b;
         }
+
         if ( m_if_enable_debug )
         {
         Common_tools::save_matrix_to_txt("/home/ziv/temp/mar_linearized_jac_new.txt", m_linearized_jacobians);

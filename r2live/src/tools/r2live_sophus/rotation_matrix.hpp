@@ -22,6 +22,8 @@ SOPHUS_FUNC bool isOrthogonal(Eigen::MatrixBase<D> const& R) {
   static_assert(N == M, "must be a square matrix");
   static_assert(N >= 2, "must have compile time dimension >= 2");
 
+//printf("rotation_matrix.hpp: 25 %0.12f ", (R * R.transpose() - Matrix<Scalar, N, N>::Identity()).norm() );
+
   return (R * R.transpose() - Matrix<Scalar, N, N>::Identity()).norm() <
          Constants<Scalar>::epsilon();
 }

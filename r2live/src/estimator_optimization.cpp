@@ -254,7 +254,9 @@ struct Marginalization_factor
         m_residual_new.setZero();
         diff_x.setZero();
 
+    
         temp_Q = Eigen::Quaterniond(g_estimator->m_para_Pose[0][6], g_estimator->m_para_Pose[0][3], g_estimator->m_para_Pose[0][4], g_estimator->m_para_Pose[0][5]).normalized();
+    
         int pos = 15;
         if (m_vio_margin_ptr->m_margin_flag == 0) // mar oldest
         {
@@ -275,6 +277,7 @@ struct Marginalization_factor
                 jacobian_matrix.block(0, i * 15, margin_residual_size, 6) = m_vio_margin_ptr->m_linearized_jacobians.block(0, pos, margin_residual_size, 6);
                 pos += 6;
             }
+
         }
         else if (m_vio_margin_ptr->m_margin_flag == 1) // mar second new
         {
@@ -285,6 +288,7 @@ struct Marginalization_factor
             diff_x.block(9, 0, 3, 1) = Eigen::Vector3d(g_estimator->m_para_SpeedBias[0][3], g_estimator->m_para_SpeedBias[0][4], g_estimator->m_para_SpeedBias[0][5]) - m_vio_margin_ptr->m_Bas[0];
             diff_x.block(12, 0, 3, 1) = Eigen::Vector3d(g_estimator->m_para_SpeedBias[0][6], g_estimator->m_para_SpeedBias[0][7], g_estimator->m_para_SpeedBias[0][8]) - m_vio_margin_ptr->m_Bgs[0];
             jacobian_matrix.block(0, 0, margin_residual_size, 15) = m_vio_margin_ptr->m_linearized_jacobians.block(0, 0, margin_residual_size, 15);
+
             for (int i = 1; i < WINDOW_SIZE - 1; i++)
             {
                 temp_t = Eigen::Vector3d(g_estimator->m_para_Pose[i][0], g_estimator->m_para_Pose[i][1], g_estimator->m_para_Pose[i][2]);
@@ -298,12 +302,22 @@ struct Marginalization_factor
 
         temp_t = Eigen::Vector3d(g_estimator->m_para_Ex_Pose[0][0], g_estimator->m_para_Ex_Pose[0][1], g_estimator->m_para_Ex_Pose[0][2]);
         temp_Q = Eigen::Quaterniond(g_estimator->m_para_Ex_Pose[0][6], g_estimator->m_para_Ex_Pose[0][3], g_estimator->m_para_Ex_Pose[0][4], g_estimator->m_para_Ex_Pose[0][5]);
+
         diff_x.block(pos, 0, 3, 1) = temp_t - m_vio_margin_ptr->m_tic[0];
+
+//std::cout << m_vio_margin_ptr->m_ric[0].transpose() << std::endl<< std::endl;
+//std::cout <<  temp_Q.toRotationMatrix() << std::endl<< std::endl;
+//std::cout << m_vio_margin_ptr->m_ric[0].transpose() * temp_Q.toRotationMatrix() << std::endl<< std::endl;
+
+
         diff_x.block(pos + 3, 0, 3, 1) = Sophus::SO3d(m_vio_margin_ptr->m_ric[0].transpose() * temp_Q.toRotationMatrix()).log();
+
         diff_x(pos + 6, 0) = g_estimator->m_para_Td[0][0] - m_vio_margin_ptr->m_td;
+
         jacobian_matrix.block(0, (WINDOW_SIZE + 1) * 15, margin_residual_size, 7) = m_vio_margin_ptr->m_linearized_jacobians.block(0, pos, margin_residual_size, 7);
         m_residual_new = m_vio_margin_ptr->m_linearized_residuals + (m_vio_margin_ptr->m_linearized_jacobians * diff_x);
         residual_vec.block(0, 0, margin_residual_size, 1) = m_residual_new;
+
         if (m_vio_margin_ptr->m_if_enable_debug == 1)
         {
             Common_tools::save_matrix_to_txt("/home/ziv/temp/mar_linearized_res_new.txt", m_vio_margin_ptr->m_linearized_residuals);
@@ -329,11 +343,18 @@ void update_delta_vector(Estimator *estimator, Eigen::Matrix<double, -1, 1> &del
     for (int idx = 0; idx < WINDOW_SIZE + 1; idx++)
     {
         Eigen::Quaterniond q_ori = Eigen::Quaterniond(estimator->m_para_Pose[idx][6], estimator->m_para_Pose[idx][3], estimator->m_para_Pose[idx][4], estimator->m_para_Pose[idx][5]);
+
         Eigen::Quaterniond q_delta = Sophus::SO3d::exp(delta_vector.block(idx * 15 + 3, 0, 3, 1)).unit_quaternion();
-        Eigen::Quaterniond q_res = (q_ori * q_delta).normalized();
-        for (int element = 0; element < 3; element++)
+        
+
+Eigen::Quaterniond q_res = (q_ori * q_delta).normalized();
+         // std::cout << "q_res:" << q_res.w() << std::endl;
+
+for (int element = 0; element < 3; element++)
         {
+ 
             estimator->m_para_Pose[idx][element] += delta_vector(idx * 15 + element);
+ 
         }
         estimator->m_para_Pose[idx][6] = q_res.w();
         estimator->m_para_Pose[idx][3] = q_res.x();
@@ -343,6 +364,7 @@ void update_delta_vector(Estimator *estimator, Eigen::Matrix<double, -1, 1> &del
         {
             estimator->m_para_SpeedBias[idx][element] += delta_vector(idx * 15 + 6 + element);
         }
+
     }
 
     if (ESTIMATE_EXTRINSIC)
@@ -359,12 +381,13 @@ void update_delta_vector(Estimator *estimator, Eigen::Matrix<double, -1, 1> &del
         estimator->m_para_Ex_Pose[0][4] = q_res.y();
         estimator->m_para_Ex_Pose[0][5] = q_res.z();
     }
-    
+
     estimator->m_para_Td[0][0] += delta_vector[(WINDOW_SIZE + 1) * 15 + 6];
     for (int element = 0; element < feature_residual_size; element++)
     {
         estimator->m_para_Feature[element][0] += delta_vector[(WINDOW_SIZE + 1) * 15 + 6 + 1 + element];
     }
+
 }
 
 void Evaluate(Estimator *estimator, std::vector<IMU_factor_res> &imu_factor_res_vec,
@@ -388,7 +411,7 @@ void Evaluate(Estimator *estimator, std::vector<IMU_factor_res> &imu_factor_res_
     Eigen::Matrix<double, -1, -1> hessian_mat, mat_I;
     
     Eigen::SparseMatrix<double> mat_I_sparse;
-
+    
     if ( margin_factor.m_vio_margin_ptr != nullptr)
     {
         // margin_factor.Evaluate();
@@ -396,13 +419,15 @@ void Evaluate(Estimator *estimator, std::vector<IMU_factor_res> &imu_factor_res_
         margin_res_size = margin_factor.m_vio_margin_ptr->m_linearized_jacobians.rows();
         res_size += margin_res_size;
     }
-
+    
     residual.resize(res_size);
     jacobian_mat.resize(res_size, parameter_size);
     hessian_mat.resize(parameter_size, parameter_size);
     mat_I.resize(hessian_mat.rows(), hessian_mat.cols());
     mat_I.setIdentity();
+    
     mat_I_sparse = mat_I.sparseView();
+    
     residual.setZero();
     jacobian_mat.setZero();
     int jacobian_pos_col;
@@ -410,7 +435,9 @@ void Evaluate(Estimator *estimator, std::vector<IMU_factor_res> &imu_factor_res_
 
     if (margin_factor.m_vio_margin_ptr != nullptr)
     {
+    
         margin_factor.Evaluate_mine(residual, jacobian_mat);
+    
     }
     
     // Add IMU constrain factor
@@ -424,7 +451,9 @@ void Evaluate(Estimator *estimator, std::vector<IMU_factor_res> &imu_factor_res_
         {
             continue;
         }
+    
         imu_factor_res_vec[idx].Evaluate();
+    
         res_pos_ros = margin_res_size + 15 * idx;
         residual.block(res_pos_ros, 0, 15, 1) = imu_factor_res_vec[idx].m_residual;
         jacobian_pos_col = imu_factor_res_vec[idx].m_index_i * 15; // Pos[i]
@@ -442,6 +471,7 @@ void Evaluate(Estimator *estimator, std::vector<IMU_factor_res> &imu_factor_res_
     
 
     // Add LiDAR prior residual
+    
     for(int idx = 0 ; idx < lidar_prior_factor_vec.size(); idx++)
     {
         lidar_prior_factor_vec[idx].Evaluate();
@@ -454,7 +484,7 @@ void Evaluate(Estimator *estimator, std::vector<IMU_factor_res> &imu_factor_res_
         jacobian_pos_col = lidar_prior_factor_vec[idx].m_index_i * 15 + 6; // speed_bias[i]
         jacobian_mat.block(res_pos_ros, jacobian_pos_col, 15, 9) = lidar_prior_factor_vec[idx].m_jacobian_mat_vec[1].block(0, 0, 15, 9);
     }
-    
+        
     // Add projection factor
     for (int idx = 0; idx < number_of_projection_res; idx++)
     {
@@ -466,7 +496,9 @@ void Evaluate(Estimator *estimator, std::vector<IMU_factor_res> &imu_factor_res_
         {
             continue;
         }
+    
         projection_factor_res_vec[idx].Evaluate();
+    
         if( fabs((projection_factor_res_vec[idx].m_jacobian_mat_vec[3].transpose() * projection_factor_res_vec[idx].m_jacobian_mat_vec[3]).coeff(0,0)) <= MIMIMUM_DELTA )
         {
             cout << "Visual [" << idx << "] unavailable!" << endl;
@@ -495,6 +527,7 @@ void Evaluate(Estimator *estimator, std::vector<IMU_factor_res> &imu_factor_res_
     }
     
     jacobian_mat_sparse = jacobian_mat.sparseView();
+
     residual_sparse = residual.sparseView();
 
     double current_cost = residual.array().abs().sum();
@@ -567,7 +600,9 @@ void Estimator::optimization_LM()
         // IMUFactor_no_ceres *imu_factor = new IMUFactor_no_ceres(pre_integrations[j]);
         IMUFactor *imu_factor = new IMUFactor(pre_integrations[j]);
         IMU_factor_res imu_factor_res;
+
         imu_factor_res.add_keyframe_to_keyframe_factor(this, imu_factor, i, j);
+
         imu_factor_res_vec.push_back(imu_factor_res);        
     }
 
@@ -575,7 +610,9 @@ void Estimator::optimization_LM()
     {
         LiDAR_prior_factor_15 *lidar_prior_factor = new LiDAR_prior_factor_15(&m_lio_state_prediction_vec[i]);
         L_prior_factor l_prior_factor;
+
         l_prior_factor.add_lidar_prior_factor(this, lidar_prior_factor, i);
+
         lidar_prior_factor_vec.push_back(l_prior_factor);
     }
 
@@ -606,7 +643,9 @@ void Estimator::optimization_LM()
                                                               it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td,
                                                               it_per_id.feature_per_frame[0].uv.y(), it_per_frame.uv.y());
             Keypoint_projection_factor key_pt_projection_factor;
+
             key_pt_projection_factor.add_projection_factor(this, f_td, imu_i, imu_j, feature_index);
+
             projection_factor_res_vec.push_back(key_pt_projection_factor);
             f_m_cnt++;
         }
@@ -618,23 +657,30 @@ void Estimator::optimization_LM()
     {
         t_build_cost += timer_tictoc.toc();
         timer_tictoc.tic();
+
         Evaluate(this, imu_factor_res_vec, projection_factor_res_vec, lidar_prior_factor_vec, margin_factor, feature_index, jacobian_sparse, residual_sparse);
+
         Eigen::VectorXd delta_vector;
         //delta_vector = solve_LM(jacobian_sparse, residual_sparse);
+
         delta_vector = lm_trust_region.compute_step(jacobian_sparse, residual_sparse, (WINDOW_SIZE + 1) * 15 + 6 + 1).toDense();
+
         update_delta_vector(this, delta_vector);
+
         t_LM_cost += timer_tictoc.toc();
     }
     double2vector();
+
     Evaluate(this, imu_factor_res_vec, projection_factor_res_vec, lidar_prior_factor_vec, margin_factor, feature_index,
              jacobian_sparse, residual_sparse, marginalization_flag);
+
     // ANCHOR - VIO marginalization
     if (m_vio_margin_ptr)
     {
         delete m_vio_margin_ptr;
     }
     m_vio_margin_ptr = new vio_marginalization();    
-
+ 
     for(int i =0; i < WINDOW_SIZE+1; i++)
     {
         m_vio_margin_ptr->m_Ps[i] = Ps[i];
@@ -646,17 +692,40 @@ void Estimator::optimization_LM()
         m_vio_margin_ptr->m_tic[0] = tic[0];
         m_vio_margin_ptr->m_td = td;
     }
+    static int cnts = 0;
+    
+    static auto last_flag = 0;
+
+    if (marginalization_flag == last_flag)
+    {
+        cnts++;
+    }
+    else
+    {
+        // if(last_flag == MARGIN_OLD )
+        //     ROS_WARN("MARGIN_OLD marginalization_flag times is: %d . ", cnts);
+        // else
+        //     ROS_WARN("MARGIN_SECOND_NEW marginalization_flag times is: %d . ", cnts);
+
+        last_flag = marginalization_flag;
+        cnts = 1;
+    }
 
     if (marginalization_flag == MARGIN_OLD)
     {
+
         int visual_size = jacobian_sparse.cols() - (15 * (WINDOW_SIZE + 1) + 6 + 1); // Extrinsic, Td
         hessian_sparse = jacobian_sparse.transpose() * jacobian_sparse;
         m_vio_margin_ptr->margin_oldest_frame(hessian_sparse.toDense(), (jacobian_sparse.transpose() * residual_sparse).toDense(), visual_size);
+
+       
     }
     else if (marginalization_flag == MARGIN_SECOND_NEW)
     {
+
         int visual_size = jacobian_sparse.cols() - (15 * (WINDOW_SIZE + 1) + 6 + 1); // Extrinsic, Td
         hessian_sparse = jacobian_sparse.transpose() * jacobian_sparse;
         m_vio_margin_ptr->margin_second_new_frame(hessian_sparse.toDense(), (jacobian_sparse.transpose() * residual_sparse).toDense(), visual_size);
+
     }
 }
