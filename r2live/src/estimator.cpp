@@ -228,7 +228,7 @@ void Estimator::solve_image_pose(const std_msgs::Header &header)
         {
             // static int ok_cnts = 1;
             // ok_cnts++;
-            // if(ok_cnts > 20 )
+            // if(ok_cnts > 5 )
             // {
                 ros::param::set("/hdl_localization_nodelet/enable_robot_odometry_prediction", true);
                 // ROS_INFO("set param in r2live--------true : ok_cnts %d ", ok_cnts);
