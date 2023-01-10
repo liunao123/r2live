@@ -1721,10 +1721,12 @@ public:
                 // to publish imu pose, add by ln 20221019,
                 // pubLidarPose.publish(msg_body_pose);
                 
-                // to publish ----lidar---- pose, add by ln 20221121,
-                msg_body_pose.pose.position.x += Lidar_offset_to_IMU[0];
-                msg_body_pose.pose.position.y += Lidar_offset_to_IMU[1];
-                msg_body_pose.pose.position.z += Lidar_offset_to_IMU[2];
+                // to publish ----lidar---- pose, add by ln 20230110
+                Eigen::Vector3d T_lidar = g_lio_state.rot_end * Lidar_offset_to_IMU + g_lio_state.pos_end;
+                msg_body_pose.pose.position.x = T_lidar(0);
+                msg_body_pose.pose.position.y = T_lidar(1);
+                msg_body_pose.pose.position.z = T_lidar(2);
+                msg_body_pose.header.frame_id = "world";
                 pubLidarPose.publish(msg_body_pose);
 
                 /******* Publish Path ********/
