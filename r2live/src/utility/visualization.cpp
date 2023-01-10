@@ -86,7 +86,8 @@ void printStatistics(const Estimator &estimator, double t)
             fs << "extrinsicRotation" << cv_R << "extrinsicTranslation" << cv_T;
             fs.release();
             ROS_WARN_STREAM("extirnsic tic: " << estimator.tic[i].transpose());
-            ROS_WARN_STREAM("extrinsic ric: " << Utility::R2ypr(estimator.ric[i]).transpose());
+            ROS_WARN_STREAM("extrinsic  ric: \n " << estimator.ric[i] );
+            ROS_WARN_STREAM("extrinsic  ric R2ypr:" << Utility::R2ypr(estimator.ric[i]).transpose());
             std::cout << "extrinsic ric is write to " << EX_CALIB_RESULT_PATH << std::endl;
         }
     }
