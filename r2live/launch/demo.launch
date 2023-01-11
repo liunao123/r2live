@@ -1,7 +1,7 @@
 <launch>
 
-    <param name="use_sim_time" value="true" />
-
+    <!-- <param name="use_sim_time" value="true" /> -->
+    <node pkg="tf" type="static_transform_publisher" name="tf_imu_lidar" args="0.05512, 0.02226, 0.0297 0 0 0 body lidar 50"/>
 
     <arg name="config_path" default = "$(find r2live)/../config/dh_cam.yaml" />
 	<arg name="vins_path" default = "$(find r2live)/../config/../" />
@@ -29,9 +29,7 @@
             <param name="vins_folder" type="string" value="$(arg vins_path)" />
     </node>
 
- <!--       <node name="rviz_visualisation" pkg="rviz" type="rviz" output="log" args="-d $(find r2live)/../config/rviz/vins_rviz_config.rviz" />
+    <!-- <node name="rviz_visualisation" pkg="rviz" type="rviz" output="log" args="-d $(find r2live)/../config/rviz/vins_rviz_config.rviz" /> -->
 
- <node pkg="r2live" type="save_registered_cloud" name="save_registered_cloud"  output="screen">
-    </node> -->
 
 </launch>

@@ -452,34 +452,12 @@ void process()
 
         // 限制耗时
         // 每帧图像特征点耗时 0.2s ,这样就保证每次取 5 帧。 保证在1s内处理完，同时，回调函数的缓存里也只有5个左右
-        // int step = 1; 
-
-        if ( measurements.size() > 3 )
+        if ( measurements.size() > 5 )
         {
             ros::param::set("/hdl_localization_nodelet/enable_robot_odometry_prediction", false);
             ROS_ERROR("set enable_robot_odometry_prediction param in r2live--------false .and restart r2live node . ");
             system("rosnode kill /r2live");
         }
-
-        // ros::param::set("/hdl_localization_nodelet/enable_roboenable_odomt_odometry_prediction", true);        
-        // bool enable_odom = true;
-        // ros::param::get("/hdl_localization_nodelet/enable_roboenable_odomt_odometry_prediction", enable_odom );
-        // if( enable_odom )
-        // {
-        // while ( measurements.size() > 5 )
-        // {
-        //     static int drop_feature = 0;
-        //     ROS_WARN("erase iamge fea --------  %ld -----------------------%ld ", measurements.size() , ++drop_feature );
-
-        //     // static std::ofstream ofs;
-        //     // ofs.open( "/home/liunao/erase_iamge_feature.txt", std::ios::app);
-        //     // ofs << "erase_iamge_feature: " << std::to_string( drop_feature ) << std::endl;
-        //     // ofs.close();
-
-        //     measurements.erase(measurements.begin());
-        //     ROS_WARN(" measurements size is %ld", measurements.size() );
-        // }
-        // }
 
         for (auto &measurement : measurements)
         {
