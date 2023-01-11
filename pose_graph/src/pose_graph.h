@@ -24,7 +24,7 @@
 #include "ThirdParty/DBoW/TemplatedDatabase.h"
 #include "ThirdParty/DBoW/TemplatedVocabulary.h"
 
-#include "odom/LoopTimePair.h"
+#include "loop_closure_gtsam/LoopTimePair.h"
 
 #define SHOW_S_EDGE true //false
 #define SHOW_L_EDGE true

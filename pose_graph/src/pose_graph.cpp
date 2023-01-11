@@ -30,7 +30,7 @@ void PoseGraph::registerPub(ros::NodeHandle &n)
     pub_base_path = n.advertise<nav_msgs::Path>("base_path", 1000);
     pub_pose_graph = n.advertise<visualization_msgs::MarkerArray>("pose_graph", 1000);
     
-    loop_time_client = n.serviceClient<odom::LoopTimePair>("/get_loop_closure");
+    loop_time_client = n.serviceClient<loop_closure_gtsam::LoopTimePair>("/get_loop_closure");
 
     for (int i = 1; i < 3; i++)
         pub_path[i] = n.advertise<nav_msgs::Path>("path_" + to_string(i), 1000);
@@ -98,7 +98,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
 
             // call service to set loop time
             // add 20221019 by ln
-            odom::LoopTimePair LTP;
+            loop_closure_gtsam::LoopTimePair LTP;
             LTP.request.first = cur_kf->time_stamp;
             LTP.request.second = old_kf->time_stamp;
             loop_time_client.call(LTP);

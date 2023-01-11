@@ -13,7 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
     camera_model
     cv_bridge
     roslib
-    odom
+    loop_closure_gtsam
     )
 
 find_package(OpenCV)
