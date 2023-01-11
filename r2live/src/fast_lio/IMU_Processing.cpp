@@ -234,7 +234,7 @@ StatesGroup ImuProcess::imu_preintegration_fast_lio(const StatesGroup &state_in,
       scope_color(ANSI_COLOR_RED_BOLD);
       for (int i = 0; i < 1; i++)
       {
-        cout << __FILE__ << ", " << __LINE__ << ", dt = " << dt << endl;
+        cout << __FILE__ << ":" << __LINE__ << ", dt = " << dt << endl;
       }
       dt = 0.05;
     }
@@ -397,7 +397,7 @@ StatesGroup ImuProcess::imu_preintegration(const StatesGroup &state_in,
       scope_color(ANSI_COLOR_RED_BOLD);
       for (int i = 0; i < 1; i++)
       {
-        cout << __FILE__ << ", " << __LINE__ << ", dt = " << dt << endl;
+        cout << __FILE__ << ": " << __LINE__ << ", dt = " << dt << endl;
       }
       dt = 0.05;
     }
