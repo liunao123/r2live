@@ -46,7 +46,7 @@ LaserLoopClosure::LaserLoopClosure() : key_(0),
                                        iLoopKeyM(0),
 
                                        loop_cnts_(0),
-                                       detect_time_regional_(2.5), // 在视觉回环发生的多少时间范围内，进行 点云匹配
+                                       detect_time_regional_(1.0), // 在视觉回环发生的多少时间范围内，进行 点云匹配
                                        detect_step_(1),           // 点云检测的步长，跳着去匹配
                                        work_dir_("/home/map/temp_test/")
 {
@@ -176,7 +176,7 @@ bool LaserLoopClosure::LoadParameters()
     // if (!pu::Get("loop_closure/relinearize_threshold", relinearize_threshold)) return false;
 
     // Load loop closing parameters.
-    translation_threshold_ = 0.7;  // 0.75
+    translation_threshold_ = 0.25;  // 0.75
     proximity_threshold_ = 15;     // 10
     max_tolerable_fitness_ = 0.36;  // 0.36; 不要太高< less 0.5 >，否则错误的约束加到GTSAM里面后，无法优化出结果
     skip_recent_poses_ = 20;       // 20

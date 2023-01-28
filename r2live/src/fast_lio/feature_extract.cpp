@@ -266,6 +266,11 @@ void velo16_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
       continue;
     }
 
+    if(leng > 50)
+    {
+      continue;
+    }
+
     double ang = atan(ap.z / leng)*rad2deg;
     scanID = int((ang + 15) / 2 + 0.5);
 

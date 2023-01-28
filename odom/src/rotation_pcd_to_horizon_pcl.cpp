@@ -92,13 +92,13 @@ int main(int argc, char **argv)
   // std::cout << "ro_matrix eigen " << ro_matrix << std::endl;
 
   // 计算提取出的地面点的 平均高度，后面可以统一减去这个值
-  // double sum_z = 0;
-  // for (int i = 0; i < inliers->indices.size (); i++)
-  // {
-  //   sum_z += cloud.points[ inliers->indices[i] ].z ;
-  // }
-  // double mean_z = sum_z / inliers->indices.size ();
-  // std::cout << "mean_z: " << mean_z << std::endl;
+  double sum_z = 0;
+  for (int i = 0; i < inliers->indices.size (); i++)
+  {
+    sum_z += cloud.points[ inliers->indices[i] ].z ;
+  }
+  double mean_z = sum_z / inliers->indices.size ();
+  std::cout << "mean_z: " << mean_z << std::endl;
 
   pcl::PointCloud<pcl::PointXYZ> flat_cloud;
   flat_cloud = cloud;
@@ -111,7 +111,7 @@ int main(int argc, char **argv)
     pcl::PointXYZ pt;
     pt.x = new_point.x();
     pt.y = new_point.y();
-    pt.z = new_point.z(); // -  mean_z ;
+    pt.z = new_point.z()  -  mean_z ;
     flat_cloud.points.push_back(pt);
   }
 

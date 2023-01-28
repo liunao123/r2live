@@ -12,17 +12,17 @@ image_width: 640
 image_height: 512
 
 distortion_parameters:
-    k1: -0.0493838
-    k2: -0.0601031
-    p1: -0.0015458547
-    p2: 0.0000830967
-    k3: 0.551411
+    k1: -0.058
+    k2: 0.1031
+    p1: -0.00066825
+    p2: -0.04018816
+    k3: -0.000887
 
 projection_parameters:
-    fx: 433.5
-    fy: 433.3
-    cx: 323.5
-    cy: 253.0
+    fx: 430.885
+    fy: 431.067
+    cx: 324.299
+    cy: 252.8054
 
 
 # Extrinsic parameter between IMU and Camera.
@@ -57,7 +57,7 @@ extrinsicTranslation: !!opencv-matrix
    dt: d
    # data: [0.1, 0.12, 0.12]
    # data: [0.22 , -0.06 , 0.11]
-   data: [0.1, 0.15, 0.12] # define 
+   data: [0.1, 0.15, 0.11] # define 
 
 
 #feature traker paprameters
@@ -90,7 +90,7 @@ pose_graph_save_path: "/home/map/pose_graph_result/" # save and load path
 
 #unsynchronization parameters
 estimate_td: 0                        # online estimate time offset between camera and imu
-td: -0.02                             # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
+td: -0.039                             # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
 
 #rolling shutter parameters
 rolling_shutter: 0                  # 0: global shutter camera, 1: rolling shutter camera

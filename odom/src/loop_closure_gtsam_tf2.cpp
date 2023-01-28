@@ -59,9 +59,9 @@ private:
     std::string tfError;
     try
     {
-      if (this->tf_buffer.canTransform("world", "body", pc_stamp, ros::Duration(0.1), &tfError))
+      if (this->tf_buffer.canTransform("world", points_msg->frame_id, pc_stamp, ros::Duration(0.1), &tfError))
       {
-        geometry_msgs::TransformStamped body_pose_in_world = tf_buffer.lookupTransform("world", "body", pc_stamp, ros::Duration(0.1));
+        geometry_msgs::TransformStamped body_pose_in_world = tf_buffer.lookupTransform("world", points_msg->frame_id, pc_stamp, ros::Duration(0.1));
 
         Eigen::Isometry3d is3d;
         geometry_msgs::PoseStamped pst;
@@ -73,7 +73,7 @@ private:
       }
       else
       {
-        ROS_WARN(" can not canTransform .");
+        ROS_WARN(" can not canTransform between \"world\" and %s .", points_msg->frame_id.c_str() );
       }
     }
     catch (tf::TransformException &ex)
