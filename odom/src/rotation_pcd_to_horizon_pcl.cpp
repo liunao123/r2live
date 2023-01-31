@@ -1,6 +1,5 @@
 #include <pcl/io/pcd_io.h>
 
-#include <pcl_ros/point_cloud.h>
 #include <pcl/ModelCoefficients.h>
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
