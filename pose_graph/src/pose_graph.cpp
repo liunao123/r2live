@@ -44,27 +44,6 @@ void PoseGraph::loadVocabulary(std::string voc_path)
 
 void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
 {
-    //shift to base frame
-    Vector3d vio_P_cur;
-    Matrix3d vio_R_cur;
-    if (sequence_cnt != cur_kf->sequence)
-    {
-        sequence_cnt++;
-        sequence_loop.push_back(0);
-        w_t_vio = Eigen::Vector3d(0, 0, 0);
-        w_r_vio = Eigen::Matrix3d::Identity();
-        m_drift.lock();
-        t_drift = Eigen::Vector3d(0, 0, 0);
-        r_drift = Eigen::Matrix3d::Identity();
-        m_drift.unlock();
-    }
-    
-    cur_kf->getVioPose(vio_P_cur, vio_R_cur);
-    vio_P_cur = w_r_vio * vio_P_cur + w_t_vio;
-    vio_R_cur = w_r_vio *  vio_R_cur;
-    cur_kf->updateVioPose(vio_P_cur, vio_R_cur);
-    cur_kf->index = global_index;
-    global_index++;
 	int loop_index = -1;
     if (flag_detect_loop)
     {
@@ -75,13 +54,22 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     {
         addKeyFrameIntoVoc(cur_kf);
     }
+
+	m_keyframelist.lock();
+	keyframelist.push_back(cur_kf);
+	m_keyframelist.unlock();
+
 	if (loop_index != -1)
 	{
-        //printf(" %d detect loop with %d \n", cur_kf->index, loop_index);
+        static int last_loop_index = -99;        
         KeyFrame* old_kf = getKeyFrame(loop_index);
-
-        if (cur_kf->findConnection(old_kf))
+        double time_diff = std::fabs (cur_kf->time_stamp - old_kf->time_stamp);
+        if ( time_diff > 100.0 && std::abs (cur_kf->index - last_loop_index) > 3 )
         {
+            printf(" %d detect loop with %d , all kf is %d time_diff is %f \n", cur_kf->index, loop_index, keyframelist.size(), time_diff);
+            // ROS_WARN("findConnection vision loop .");
+            last_loop_index = cur_kf->index;
+            
             // 把回环对应的 时间戳记录下来
             std::string loop_time_name(VINS_RESULT_PATH);
             loop_time_name.insert(loop_time_name.length() - 4, "_time");
@@ -104,133 +92,19 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
             loop_time_client.call(LTP);
             ROS_WARN("get vision loop ,send to gtsam .");
 
-            if (earliest_loop_index > loop_index || earliest_loop_index == -1)
-                earliest_loop_index = loop_index;
+	            // cv::Mat loop_match_img;
+	            // cv::Mat cur_kf_img = cur_kf->image;
+	            // cv::Mat old_kf_img = old_kf->image;
 
-            Vector3d w_P_old, w_P_cur, vio_P_cur;
-            Matrix3d w_R_old, w_R_cur, vio_R_cur;
-            old_kf->getVioPose(w_P_old, w_R_old);
-            cur_kf->getVioPose(vio_P_cur, vio_R_cur);
+	            // cv::hconcat(cur_kf_img, old_kf_img, loop_match_img);
 
-            Vector3d relative_t;
-            Quaterniond relative_q;
-            relative_t = cur_kf->getLoopRelativeT();
-            relative_q = (cur_kf->getLoopRelativeQ()).toRotationMatrix();
-            w_P_cur = w_R_old * relative_t + w_P_old;
-            w_R_cur = w_R_old * relative_q;
-            double shift_yaw;
-            Matrix3d shift_r;
-            Vector3d shift_t; 
-            shift_yaw = Utility::R2ypr(w_R_cur).x() - Utility::R2ypr(vio_R_cur).x();
-            shift_r = Utility::ypr2R(Vector3d(shift_yaw, 0, 0));
-            shift_t = w_P_cur - w_R_cur * vio_R_cur.transpose() * vio_P_cur; 
-            // shift vio pose of whole sequence to the world frame
-            if (old_kf->sequence != cur_kf->sequence && sequence_loop[cur_kf->sequence] == 0)
-            {  
-                w_r_vio = shift_r;
-                w_t_vio = shift_t;
-                vio_P_cur = w_r_vio * vio_P_cur + w_t_vio;
-                vio_R_cur = w_r_vio *  vio_R_cur;
-                cur_kf->updateVioPose(vio_P_cur, vio_R_cur);
-                list<KeyFrame*>::iterator it = keyframelist.begin();
-                for (; it != keyframelist.end(); it++)   
-                {
-                    if((*it)->sequence == cur_kf->sequence)
-                    {
-                        Vector3d vio_P_cur;
-                        Matrix3d vio_R_cur;
-                        (*it)->getVioPose(vio_P_cur, vio_R_cur);
-                        vio_P_cur = w_r_vio * vio_P_cur + w_t_vio;
-                        vio_R_cur = w_r_vio *  vio_R_cur;
-                        (*it)->updateVioPose(vio_P_cur, vio_R_cur);
-                    }
-                }
-                sequence_loop[cur_kf->sequence] = 1;
-            }
-            m_optimize_buf.lock();
-            optimize_buf.push(cur_kf->index);
-            m_optimize_buf.unlock();
-        }
-	}
-	m_keyframelist.lock();
-    Vector3d P;
-    Matrix3d R;
-    cur_kf->getVioPose(P, R);
-    P = r_drift * P + t_drift;
-    R = r_drift * R;
-    cur_kf->updatePose(P, R);
-    Quaterniond Q{R};
-    geometry_msgs::PoseStamped pose_stamped;
-    pose_stamped.header.stamp = ros::Time(cur_kf->time_stamp);
-    pose_stamped.header.frame_id = "world";
-    pose_stamped.pose.position.x = P.x() + VISUALIZATION_SHIFT_X;
-    pose_stamped.pose.position.y = P.y() + VISUALIZATION_SHIFT_Y;
-    pose_stamped.pose.position.z = P.z();
-    pose_stamped.pose.orientation.x = Q.x();
-    pose_stamped.pose.orientation.y = Q.y();
-    pose_stamped.pose.orientation.z = Q.z();
-    pose_stamped.pose.orientation.w = Q.w();
-    path[sequence_cnt].poses.push_back(pose_stamped);
-    path[sequence_cnt].header = pose_stamped.header;
-
-    if (SAVE_LOOP_PATH)
-    {
-        ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
-        loop_path_file.setf(ios::fixed, ios::floatfield);
-        loop_path_file.precision(10);
-        loop_path_file << cur_kf->time_stamp  << " ";
-        loop_path_file.precision(5);
-        loop_path_file  << P.x() << " "
-              << P.y() << " "
-              << P.z() << " "
-              << Q.x() << " "
-              << Q.y() << " "
-              << Q.z() << " "
-              << Q.w() << endl;
-        loop_path_file.close();
-    }
-    //draw local connection
-    if (SHOW_S_EDGE)
-    {
-        list<KeyFrame*>::reverse_iterator rit = keyframelist.rbegin();
-        for (int i = 0; i < 4; i++)
-        {
-            if (rit == keyframelist.rend())
-                break;
-            Vector3d conncected_P;
-            Matrix3d connected_R;
-            if((*rit)->sequence == cur_kf->sequence)
-            {
-                (*rit)->getPose(conncected_P, connected_R);
-                posegraph_visualization->add_edge(P, conncected_P);
-            }
-            rit++;
+	            // cvtColor(loop_match_img, loop_match_img, CV_GRAY2RGB);	            	
+                // cv::imshow("match connection",loop_match_img);  
+	            // cv::waitKey(100);
         }
     }
-    if (SHOW_L_EDGE)
-    {
-        if (cur_kf->has_loop)
-        {
-            //printf("has loop \n");
-            KeyFrame* connected_KF = getKeyFrame(cur_kf->loop_index);
-            Vector3d connected_P,P0;
-            Matrix3d connected_R,R0;
-            connected_KF->getPose(connected_P, connected_R);
-            //cur_kf->getVioPose(P0, R0);
-            cur_kf->getPose(P0, R0);
-            if(cur_kf->sequence > 0)
-            {
-                //printf("add loop into visual \n");
-                posegraph_visualization->add_loopedge(P0, connected_P + Vector3d(VISUALIZATION_SHIFT_X, VISUALIZATION_SHIFT_Y, 0));
-            }
-            
-        }
-    }
-    //posegraph_visualization->add_pose(P + Vector3d(VISUALIZATION_SHIFT_X, VISUALIZATION_SHIFT_Y, 0), Q);
 
-	keyframelist.push_back(cur_kf);
-    publish();
-	m_keyframelist.unlock();
+    return ;
 }
 
 
@@ -340,7 +214,7 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
     //first query; then add this frame into database!
     QueryResults ret;
     TicToc t_query;
-    db.query(keyframe->brief_descriptors, ret, 4, frame_index - 50);
+    db.query(keyframe->brief_descriptors, ret, 3, frame_index - 50);
     //printf("query time: %f", t_query.toc());
     //cout << "Searching for Image " << frame_index << ". " << ret << endl;
 
@@ -369,14 +243,14 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
         }
     }
     // a good match with its nerghbour
-    if (ret.size() >= 1 &&ret[0].Score > 0.05)
+    if (ret.size() >= 1 &&ret[0].Score > 0.02)
         for (unsigned int i = 1; i < ret.size(); i++)
         {
+	// ROS_ERROR("find loop:ret[i].Score %f\n", ret[i].Score);
             //if (ret[i].Score > ret[0].Score * 0.3)
-            if (ret[i].Score > 0.015)
+            if (ret[i].Score > 0.03)
             {          
                 find_loop = true;
-	//ROS_ERROR("find loop \n");
                 int tmp_index = ret[i].Id;
 //                if (DEBUG_IMAGE && 0)
                 if (DEBUG_IMAGE && 1)

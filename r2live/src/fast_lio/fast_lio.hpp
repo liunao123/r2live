@@ -100,6 +100,9 @@ extern double g_lidar_star_tim;
 class Fast_lio
 {
 public:
+    
+    Eigen::Matrix3d Lidar_offset_to_IMU_extrinsic_R;
+
     std::mutex  m_mutex_lio_process;
 
     std::shared_ptr<ImuProcess> m_imu_process;
@@ -229,7 +232,7 @@ public:
     void pointBodyToWorld(PointType const *const pi, PointType *const po)
     {
         Eigen::Vector3d p_body(pi->x, pi->y, pi->z);
-        Eigen::Vector3d p_global(g_lio_state.rot_end * (p_body + Lidar_offset_to_IMU) + g_lio_state.pos_end);
+        Eigen::Vector3d p_global(g_lio_state.rot_end * (Lidar_offset_to_IMU_extrinsic_R * p_body + Lidar_offset_to_IMU) + g_lio_state.pos_end);
 
         po->x = p_global(0);
         po->y = p_global(1);
@@ -241,7 +244,7 @@ public:
     void pointBodyToWorld(const Eigen::Matrix<T, 3, 1> &pi, Eigen::Matrix<T, 3, 1> &po)
     {
         Eigen::Vector3d p_body(pi[0], pi[1], pi[2]);
-        Eigen::Vector3d p_global(g_lio_state.rot_end * (p_body + Lidar_offset_to_IMU) + g_lio_state.pos_end);
+        Eigen::Vector3d p_global(g_lio_state.rot_end * (Lidar_offset_to_IMU_extrinsic_R * p_body + Lidar_offset_to_IMU) + g_lio_state.pos_end);
         po[0] = p_global(0);
         po[1] = p_global(1);
         po[2] = p_global(2);
@@ -250,7 +253,7 @@ public:
     void RGBpointBodyToWorld(PointType const *const pi, pcl::PointXYZI *const po)
     {
         Eigen::Vector3d p_body(pi->x, pi->y, pi->z);
-        Eigen::Vector3d p_global(g_lio_state.rot_end * (p_body + Lidar_offset_to_IMU) + g_lio_state.pos_end);
+        Eigen::Vector3d p_global(g_lio_state.rot_end * (Lidar_offset_to_IMU_extrinsic_R * p_body + Lidar_offset_to_IMU) + g_lio_state.pos_end);
 
         po->x = p_global(0);
         po->y = p_global(1);
@@ -807,6 +810,15 @@ public:
     std::thread m_thread_process;
     Fast_lio()
     {
+
+        Lidar_offset_to_IMU_extrinsic_R <<  0.999901 , 0.013091 ,-0.005085,
+                   -0.013061 , 0.999897 , 0.005917 ,
+                   0.005162 , -0.005850 , 0.999970 ;
+
+        // Lidar_offset_to_IMU_extrinsic_R = Eigen::Matrix3d::Identity();
+
+        ROS_INFO_STREAM( " Lidar_offset_to_IMU_extrinsic_R: " << std::endl << Lidar_offset_to_IMU_extrinsic_R <<  std::endl  <<  std::endl) ;
+
         printf_line;
         pubLaserCloudFullRes = nh.advertise<sensor_msgs::PointCloud2>("/cloud_registered", 100);
         pubLaserCloudEffect = nh.advertise<sensor_msgs::PointCloud2>("/cloud_effected", 100);
@@ -1718,17 +1730,6 @@ public:
                 mavros_pose_publisher.publish(msg_body_pose);
 #endif
 
-                // to publish imu pose, add by ln 20221019,
-                // pubLidarPose.publish(msg_body_pose);
-                
-                // to publish ----lidar---- pose, add by ln 20230110
-                Eigen::Vector3d T_lidar = g_lio_state.rot_end * Lidar_offset_to_IMU + g_lio_state.pos_end;
-                msg_body_pose.pose.position.x = T_lidar(0);
-                msg_body_pose.pose.position.y = T_lidar(1);
-                msg_body_pose.pose.position.z = T_lidar(2);
-                msg_body_pose.header.frame_id = "world";
-                pubLidarPose.publish(msg_body_pose);
-
                 /******* Publish Path ********/
                 msg_body_pose.header.frame_id = "world";
                 path.poses.push_back(msg_body_pose);
@@ -1737,6 +1738,28 @@ public:
                 {
                     g_camera_lidar_queue.m_bag_for_record.write(pubPath.getTopic(), msg_body_pose.header.stamp, path);
                 }
+
+                // to publish imu pose, add by ln 20221019,
+                // pubLidarPose.publish(msg_body_pose);
+                
+                // to publish ----lidar---- pose, add by ln 20230110
+                Eigen::Vector3d T_lidar = g_lio_state.rot_end * Lidar_offset_to_IMU + g_lio_state.pos_end;  //平移 分量
+                Eigen::Matrix3d R_lidar = g_lio_state.rot_end * Lidar_offset_to_IMU_extrinsic_R;    //旋转 分量 
+
+                msg_body_pose.pose.position.x = T_lidar(0);
+                msg_body_pose.pose.position.y = T_lidar(1);
+                msg_body_pose.pose.position.z = T_lidar(2);
+             
+                Eigen::Quaterniond R_lidar_quat(R_lidar);
+                R_lidar_quat.normalize();
+                msg_body_pose.pose.orientation.x = R_lidar_quat.x();
+                msg_body_pose.pose.orientation.y = R_lidar_quat.y();
+                msg_body_pose.pose.orientation.z = R_lidar_quat.z();
+                msg_body_pose.pose.orientation.w = R_lidar_quat.w();
+
+                msg_body_pose.header.frame_id = "world";
+                pubLidarPose.publish(msg_body_pose);
+
                 /*** save debug variables ***/
                 frame_num++;
                 aver_time_consu = aver_time_consu * (frame_num - 1) / frame_num + (t5 - t0) / frame_num;

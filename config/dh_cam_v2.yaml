@@ -22,7 +22,7 @@ projection_parameters:
     fx: 430.885
     fy: 431.067
     cx: 324.299
-    cy: 252.8054
+    cy: 252.805
 
 
 # Extrinsic parameter between IMU and Camera.
@@ -41,29 +41,44 @@ extrinsicRotation: !!opencv-matrix
    #        0.0119991 , -0.999691 , -0.0217793]
 
 # TODO 保留 6位小数即可，再多就会报错
-   # outdoor:  online extrinsic calibrate 
-   # data: [ -0.0071588, -0.0045385, 0.9999641,
-   #        -0.9999744, -0.0000722, -0.0076562,
-   #        0.0001047,  -0.9999897, -0.0045378]
+   # outdoor:  online extrinsic calibrate 还能跑的久一些
+   data: [ -0.0071588, -0.0045385, 0.9999641,
+          -0.9999744, -0.0000722, -0.0076562,
+          0.0001047,  -0.9999897, -0.0045378]
 
-   data: [-0.023286 , -0.0421676  , 0.998839,
-          -0.999443 , -0.0228807 , -0.024266,
-          0.0238774 , -0.998848 , -0.0416111]
+   # data: [-0.023286 , -0.0421676  , 0.998839,
+   #        -0.999443 , -0.0228807 , -0.024266,
+   #        0.0238774 , -0.998848 , -0.0416111]
+
+# todo 由fast_livo里面两个外参计算出来的
+   # data: [ 0.0316864 , -0.0173721 ,  0.999347 , 
+   #         -0.999405 , -0.0141721 , 0.0314418 , 
+   #         0.0136167 , -0.999749 , -0.0178108  ]
+          
+# todo 由fast_livo里面两个外参计算出来的 联合标定的均值 ,fast_livo在用的值
+   # data: [ 0.0299644 , 0.0732127 ,  0.996866 , 
+   #         -0.999108 ,-0.0274997 , 0.0320514 , 
+   #         0.0297601 , -0.996937 , 0.0723234  ]
 
 #Translation from camera frame to imu frame, imu^T_cam
 extrinsicTranslation: !!opencv-matrix
    rows: 3
    cols: 1
    dt: d
-   # data: [0.1, 0.12, 0.12]
+   data: [0.1, 0.15, 0.09]
    # data: [0.22 , -0.06 , 0.11]
-   data: [0.1, 0.15, 0.11] # define 
+   # data: [0.1, 0.15, 0.11] # define 
+
+   # todo 由fast_livo里面两个外参计算出来的
+   # data: [0.0717959,  0.234572,  0.184406] # define 先旋转，再平移 来构造的 T
+   # data: [0.130012 ,  0.179994 , 0.0784502]  # define 先平移，再旋转 来构造的 T
+
 
 
 #feature traker paprameters
 max_cnt: 150           # max feature number in feature tracking
 min_dist: 30            # min distance between two features 
-freq: 5                 # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
+freq: 8                 # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
 F_threshold: 1.0 #1.0        # ransac threshold (pixel)
 show_track: 1           # publish tracking image as topic
 equalize: 1             # if image is too dark or light, trun on equalize to find enough features
@@ -90,7 +105,7 @@ pose_graph_save_path: "/home/map/pose_graph_result/" # save and load path
 
 #unsynchronization parameters
 estimate_td: 0                        # online estimate time offset between camera and imu
-td: -0.039                             # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
+td: 0.03                             # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
 
 #rolling shutter parameters
 rolling_shutter: 0                  # 0: global shutter camera, 1: rolling shutter camera

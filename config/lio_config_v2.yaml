@@ -1,6 +1,6 @@
 feature_extraction:
    lidar_type: 2 # 2 for velody_16
-   blind: 2.0
+   blind: 3.0
    inf_bound: 4
    N_SCANS: 16
    group_size: 8
