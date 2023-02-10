@@ -246,6 +246,32 @@ void velo16_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
   vector<pcl::PointCloud<PointType>> pl_buff(N_SCANS);
   vector<vector<orgtype>> typess(N_SCANS);
   pcl::PointCloud<PointType> pl_corn, pl_surf, pl_full;
+  
+  for(uint i=0; i<plsize; i++)
+  {
+    PointType &ap = pl_orig[i];
+    ap.normal_x = 0;
+    ap.normal_y = 0;
+    ap.normal_z = 0;
+    ap.intensity = pl_orig.points[i].intensity;
+    // ap.curvature = pl_orig.points[i].time / 1000.0; // units: ms
+    
+    double leng = sqrt(ap.x*ap.x + ap.y*ap.y);
+    if(leng < blind)
+    {
+      continue;
+    }
+
+    if(leng > 100.0)
+    {
+      continue;
+    }
+    pl_surf.points.push_back(ap);
+  }
+  pub_func(pl_surf, pub_surf, msg->header.stamp);
+
+  return ;
+
 
   int scanID;
   int last_stat = -1;
@@ -266,7 +292,7 @@ void velo16_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
       continue;
     }
 
-    if(leng > 50)
+    if(leng > 100)
     {
       continue;
     }
