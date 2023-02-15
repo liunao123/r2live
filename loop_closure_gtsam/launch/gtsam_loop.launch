@@ -2,5 +2,7 @@
 
     <node pkg="loop_closure_gtsam" type="loop_closure_gtsam" name="loop_closure_gtsam_online"  output="screen">
     </node>
+    <node pkg="r2live" type="save_registered_cloud" name="save_registered_cloud"  output="screen"/>
+
     
 </launch>

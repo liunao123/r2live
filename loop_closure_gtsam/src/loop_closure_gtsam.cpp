@@ -9,6 +9,7 @@
 #include <geometry_msgs/PoseStamped.h>
 
 #include <queue>
+#include <vector>
 
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
@@ -36,8 +37,11 @@ LaserLoopClosure llc;
 // double last_callback_time = 0;
 bool Exit_this = false;
 
+std::vector<geometry_msgs::PoseStampedConstPtr> lidar_pose;
+
 void add_pose_and_scan_to_gtsam_callback(const geometry_msgs::PoseStampedConstPtr &pose, const sensor_msgs::PointCloud2ConstPtr &scan)
 {
+  lidar_pose.push_back(pose);
   // ROS_INFO("pose time is %f, scan time is : %f", pose->header.stamp.toSec(), scan->header.stamp.toSec());
   geometry_utils::Vector3Base<double> posi_i(pose->pose.position.x,
                                              pose->pose.position.y,
@@ -73,13 +77,42 @@ void add_pose_and_scan_to_gtsam_callback(const geometry_msgs::PoseStampedConstPt
     keyframe_cnts++;
   }
   // cout << "keyframe_cnts is : " << keyframe_cnts << endl;
-  ROS_INFO("keyframe_cnts is : %d .", keyframe_cnts);
+    // ROS_INFO("keyframe_cnts is : %d .", keyframe_cnts);
 }
 
 bool startLoopDetect(loop_closure_gtsam::LoopTimePair::Request &req, loop_closure_gtsam::LoopTimePair::Response &res)
 {
-  llc.setOneLoopTime(req.first, req.second);
-  ROS_WARN("get a vision loop time pair. time pair is %f. %f",  req.first, req.second );
+  // 遍历出 距离这个两个时间戳最近的位姿，如果距离过大就不处理这个时间戳对
+  std::vector<geometry_msgs::PoseStampedConstPtr>::iterator iter = lidar_pose.begin();
+  float x_first =  0;
+  float y_first =  0;
+  float x_second =  0;
+  float y_second =  0;
+
+  for (; iter != lidar_pose.end(); iter++)
+  {
+    if( std::fabs( (*iter)->header.stamp.toSec() - req.first ) < 0.1 )
+    {
+      x_first = (*iter)->pose.position.x;
+      y_first = (*iter)->pose.position.y;
+    }
+
+    if( std::fabs( (*iter)->header.stamp.toSec() - req.second ) < 0.1 )
+    {
+      x_second = (*iter)->pose.position.x;
+      y_second = (*iter)->pose.position.y;
+    }
+
+  }
+
+  // 时间戳对应的位姿，足够近，再去加入回环
+  // if(x_first * y_first * x_second * y_second != 0)
+  if( std::fabs( x_first - x_second ) < 5.0 && std::fabs( y_first - y_second ) < 5.0 )
+  {
+    llc.setOneLoopTime(req.first, req.second);
+    ROS_WARN("get a vision loop time pair. time pair is %f. %f",  req.first, req.second );
+  }
+  ROS_WARN("Dx , Dy position is: %f. %f ",  x_first - x_second  , y_first - y_second );
   return true;
 }
 
@@ -87,7 +120,7 @@ bool endGtsamProcess(std_srvs::Trigger::Request &req, std_srvs::Trigger::Respons
 {
   dzlog_info(" start to save map .then exit gtsam loop optimize process .");
   llc.saveMap();
-  Exit_this = true;
+  // Exit_this = true;
   res.success = true;
   res.message = "end gtsam .";
   return true;
@@ -102,7 +135,7 @@ int initZlog()
   }
   if (dzlog_init("/home/config/zlog.conf", "loop_cat") != 0)
   {
-    printf("gnss init zlog failed\n");
+    printf("loop_cat init zlog failed\n");
     return -1;
   }
   return 0;

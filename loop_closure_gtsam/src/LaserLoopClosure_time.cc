@@ -46,8 +46,8 @@ LaserLoopClosure::LaserLoopClosure() : key_(0),
                                        iLoopKeyM(0),
 
                                        loop_cnts_(0),
-                                       detect_time_regional_(1.0), // 在视觉回环发生的多少时间范围内，进行 点云匹配
-                                       detect_step_(1),           // 点云检测的步长，跳着去匹配
+                                       detect_time_regional_(3.0), // 在视觉回环发生的多少时间范围内，进行 点云匹配
+                                       detect_step_(2),           // 点云检测的步长，跳着去匹配
                                        work_dir_("/home/map/temp_test/")
 {
 }
@@ -74,7 +74,7 @@ void LaserLoopClosure::saveMap()
 
     cout << "before filter size is :"  << points->points.size() << endl;
     pcl::VoxelGrid<pcl::PointXYZ> downSizeFilterTempMap;
-    downSizeFilterTempMap.setLeafSize(0.1f , 0.1f, 0.1f);
+    downSizeFilterTempMap.setLeafSize(0.2f , 0.2f, 0.2f);
     downSizeFilterTempMap.setInputCloud((*points).makeShared());
     downSizeFilterTempMap.filter(*points);
     cout << __FILE__ << ":" << __LINE__ << " after filter size is <0.1f >:"  << points->points.size() << endl;
@@ -144,6 +144,13 @@ bool LaserLoopClosure::Initialize()
     std::cout << " LoadParameters start  : " << std::endl;
     LoadParameters();
     std::cout << " LoadParameters end  : " << std::endl;
+
+    std::string folder_temp = "rm -r " + work_dir_ + "pose_graph/"; 
+    system( folder_temp.c_str() );
+    folder_temp =  "mkdir -p " +  work_dir_  + "SC/" ;
+    system(folder_temp.c_str());
+    folder_temp =  "mkdir -p " +  work_dir_  + "icp/" ;
+    system(folder_temp.c_str());
     return true;
 }
 
@@ -175,9 +182,9 @@ bool LaserLoopClosure::LoadParameters()
 
     // Load loop closing parameters.
     translation_threshold_ = 0.25;  // 0.75
-    proximity_threshold_ = 15;     // 10
+    proximity_threshold_ = 25;     // 10
     max_tolerable_fitness_ = 0.36;  // 0.36; 不要太高< less 0.5 >，否则错误的约束加到GTSAM里面后，无法优化出结果
-    skip_recent_poses_ = 20;       // 20
+    skip_recent_poses_ = 10;       // 20
     maxLoopKeysYawM = 1.0; //1.05
     // if (!pu::Get("loop_closure/translation_threshold", translation_threshold_)) return false;
     // if (!pu::Get("loop_closure/proximity_threshold", proximity_threshold_)) return false;
@@ -730,17 +737,17 @@ bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr &scan1,
          << delta->rotation.GetEulerZYX() * 180 / M_PI << endl;
 
     std::string name;
-    name = "/root/Desktop/r2/src/icp/_" + std::to_string(cnts) + "_scan2.pcd";
+    name = work_dir_ + "icp/_" + std::to_string(cnts) + "_scan2.pcd";
     // cout << "754 path is :" << name << endl;
     pcl::io::savePCDFile(name, *scan2);
     // pcl::io::savePCDFile(name, scan2_filter);
 
-    name = "/root/Desktop/r2/src/icp/_" + std::to_string(cnts) + "_scan1.pcd";
+    name = work_dir_ + "icp/_" + std::to_string(cnts) + "_scan1.pcd";
     // cout << "759 path is :" << name << endl;
     pcl::io::savePCDFile(name, *scan1);
     // pcl::io::savePCDFile(name, scan1_filter);
 
-    name = "/root/Desktop/r2/src/icp/_" + std::to_string(cnts) + "_unused_result.pcd";
+    name = work_dir_ + "icp/_" + std::to_string(cnts) + "_unused_result.pcd";
     cout << "764 path is :" << name << endl;
     pcl::io::savePCDFile(name, unused_result);
 
@@ -822,8 +829,9 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
         // 中间的回环将尾的位置 纠正到 离头的 位置很远，这样 位置差就不满足以下的关系了。
         // 由于已经从视觉回环上确定了大概的时间，此时对应的位置也基本确定，将其注释掉，问题不大。
         // 在测试 20221011
-        if ((difference.translation.Norm() < proximity_threshold_) &&
-            (fabs(difference.rotation.Yaw()) < maxLoopKeysYawM))
+        // if (  (difference.translation.Norm() < proximity_threshold_) )
+            //  && (fabs(difference.rotation.Yaw()) < maxLoopKeysYawM)
+        // if( fabs(difference.rotation.Yaw()) < maxLoopKeysYawM )
         {
             gu::Transform3 deltaTemp;
             LaserLoopClosure::Mat66 covarianceTemp;
