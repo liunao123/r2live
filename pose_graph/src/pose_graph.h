@@ -85,6 +85,7 @@ private:
 	ros::Publisher pub_base_path;
 	ros::Publisher pub_pose_graph;
 	ros::Publisher pub_path[10];
+	ros::Publisher pub_match_img;
 	ros::ServiceClient loop_time_client;
 };
 

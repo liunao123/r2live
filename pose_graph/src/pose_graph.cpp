@@ -31,6 +31,7 @@ void PoseGraph::registerPub(ros::NodeHandle &n)
     pub_pose_graph = n.advertise<visualization_msgs::MarkerArray>("pose_graph", 1000);
     
     loop_time_client = n.serviceClient<loop_closure_gtsam::LoopTimePair>("/get_loop_closure");
+    pub_match_img = n.advertise<sensor_msgs::Image>("match_image", 1000);
 
     for (int i = 1; i < 3; i++)
         pub_path[i] = n.advertise<nav_msgs::Path>("path_" + to_string(i), 1000);
@@ -90,17 +91,17 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
             LTP.request.first = cur_kf->time_stamp;
             LTP.request.second = old_kf->time_stamp;
             loop_time_client.call(LTP);
-            ROS_WARN("get vision loop ,send to gtsam .");
 
-	            // cv::Mat loop_match_img;
-	            // cv::Mat cur_kf_img = cur_kf->image;
-	            // cv::Mat old_kf_img = old_kf->image;
-
-	            // cv::hconcat(cur_kf_img, old_kf_img, loop_match_img);
-
-	            // cvtColor(loop_match_img, loop_match_img, CV_GRAY2RGB);	            	
-                // cv::imshow("match connection",loop_match_img);  
-	            // cv::waitKey(100);
+	        cv::Mat loop_match_img;
+	        cv::Mat cur_kf_img = cur_kf->image;
+	        cv::Mat old_kf_img = old_kf->image;
+	        cv::hconcat(cur_kf_img, old_kf_img, loop_match_img);
+	        cvtColor(loop_match_img, loop_match_img, CV_GRAY2RGB);	            	
+            // cv::imshow("match connection",loop_match_img);  
+	        // cv::waitKey(100);
+            sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", loop_match_img).toImageMsg();
+            pub_match_img.publish(*msg);
+            ROS_WARN("get vision loop ,send to gtsam and publish loop_match_img.");
         }
     }
 
@@ -248,7 +249,7 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
         {
 	// ROS_ERROR("find loop:ret[i].Score %f\n", ret[i].Score);
             //if (ret[i].Score > ret[0].Score * 0.3)
-            if (ret[i].Score > 0.03)
+            if (ret[i].Score > 0.04)
             {          
                 find_loop = true;
                 int tmp_index = ret[i].Id;

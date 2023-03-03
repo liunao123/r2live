@@ -53,7 +53,7 @@ int FAST_RELOCALIZATION;
 camodocal::CameraPtr m_camera;
 Eigen::Vector3d tic;
 Eigen::Matrix3d qic;
-ros::Publisher pub_match_img;
+
 ros::Publisher pub_match_points;
 ros::Publisher pub_camera_pose_visual;
 ros::Publisher pub_key_odometrys;
@@ -354,21 +354,21 @@ void process()
             //printf(" point time %f \n", point_msg->header.stamp.toSec());
             //printf(" image time %f \n", image_msg->header.stamp.toSec());
             // skip fisrt few
-            if (skip_first_cnt < SKIP_FIRST_CNT)
-            {
-                skip_first_cnt++;
-                continue;
-            }
+            // if (skip_first_cnt < SKIP_FIRST_CNT)
+            // {
+            //     skip_first_cnt++;
+            //     continue;
+            // }
 
-            if (skip_cnt < SKIP_CNT)
-            {
-                skip_cnt++;
-                continue;
-            }
-            else
-            {
-                skip_cnt = 0;
-            }
+            // if (skip_cnt < SKIP_CNT)
+            // {
+            //     skip_cnt++;
+            //     continue;
+            // }
+            // else
+            // {
+            //     skip_cnt = 0;
+            // }
 
             cv_bridge::CvImageConstPtr ptr;
             if (image_msg->encoding == "8UC1")
@@ -553,8 +553,6 @@ int main(int argc, char **argv)
     fsSettings.release();
 
     ros::Subscriber sub_image = n.subscribe(IMAGE_TOPIC, 2000, image_callback);
-
-    pub_match_img = n.advertise<sensor_msgs::Image>("match_image", 1000);
 
 
     std::thread measurement_process;

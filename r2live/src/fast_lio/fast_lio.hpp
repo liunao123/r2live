@@ -811,11 +811,11 @@ public:
     Fast_lio()
     {
 
-        Lidar_offset_to_IMU_extrinsic_R <<  0.999901 , 0.013091 ,-0.005085,
-                   -0.013061 , 0.999897 , 0.005917 ,
-                   0.005162 , -0.005850 , 0.999970 ;
+        // Lidar_offset_to_IMU_extrinsic_R <<  0.999901 , 0.013091 ,-0.005085,
+        //            -0.013061 , 0.999897 , 0.005917 ,
+        //            0.005162 , -0.005850 , 0.999970 ;
 
-        // Lidar_offset_to_IMU_extrinsic_R = Eigen::Matrix3d::Identity();
+        Lidar_offset_to_IMU_extrinsic_R = Eigen::Matrix3d::Identity();
 
         ROS_INFO_STREAM( " Lidar_offset_to_IMU_extrinsic_R: " << std::endl << Lidar_offset_to_IMU_extrinsic_R <<  std::endl  <<  std::endl) ;
 
@@ -904,7 +904,7 @@ public:
     {
         nav_msgs::Path path;
         path.header.stamp = ros::Time::now();
-        path.header.frame_id = "/world";
+        path.header.frame_id = "world";
 
         /*** variables definition ***/
         Eigen::Matrix<double, DIM_OF_STATES, DIM_OF_STATES> G, H_T_H, I_STATE;
@@ -1668,7 +1668,7 @@ public:
                 /******* Publish Odometry ******/
                 geometry_msgs::Quaternion geoQuat = tf::createQuaternionMsgFromRollPitchYaw(euler_cur(0), euler_cur(1), euler_cur(2));
                 odomAftMapped.header.frame_id = "world";
-                odomAftMapped.child_frame_id = "/aft_mapped";
+                odomAftMapped.child_frame_id = "aft_mapped";
                 odomAftMapped.header.stamp = ros::Time::now(); //ros::Time().fromSec(last_timestamp_lidar);
                 odomAftMapped.pose.pose.orientation.x = geoQuat.x;
                 odomAftMapped.pose.pose.orientation.y = geoQuat.y;
@@ -1695,12 +1695,12 @@ public:
                 q.setY(odomAftMapped.pose.pose.orientation.y);
                 q.setZ(odomAftMapped.pose.pose.orientation.z);
                 transform.setRotation(q);
-                br.sendTransform(tf::StampedTransform(transform, ros::Time().fromSec(Measures.lidar_end_time), "world", "/aft_mapped"));
+                br.sendTransform(tf::StampedTransform(transform, ros::Time().fromSec(Measures.lidar_end_time), "world", "imu"));
 
                 // msg_body_pose.header.stamp = ros::Time::now();
                 // msg_body_pose.header.frame_id = "/camera_odom_frame";
                 msg_body_pose.header.stamp = ros::Time().fromSec(Measures.lidar_end_time);
-                msg_body_pose.header.frame_id = "/world";
+                msg_body_pose.header.frame_id = "world";
                 msg_body_pose.pose.position.x = g_lio_state.pos_end(0);
                 msg_body_pose.pose.position.y = g_lio_state.pos_end(1);
                 msg_body_pose.pose.position.z = g_lio_state.pos_end(2);
@@ -1713,8 +1713,8 @@ public:
                     // Trick from https://answers.ros.org/question/65556/write-a-tfmessage-to-bag-file/
                     tf::tfMessage message;
                     geometry_msgs::TransformStamped msg;
-                    msg.header.frame_id = "/world";
-                    msg.child_frame_id = "/aft_mapped";
+                    msg.header.frame_id = "world";
+                    msg.child_frame_id = "aft_mapped";
                     msg.transform.rotation.w = geoQuat.w;
                     msg.transform.rotation.x = geoQuat.x;
                     msg.transform.rotation.y = geoQuat.y;
@@ -1745,7 +1745,7 @@ public:
                 // to publish ----lidar---- pose, add by ln 20230110
                 Eigen::Vector3d T_lidar = g_lio_state.rot_end * Lidar_offset_to_IMU + g_lio_state.pos_end;  //平移 分量
                 Eigen::Matrix3d R_lidar = g_lio_state.rot_end * Lidar_offset_to_IMU_extrinsic_R;    //旋转 分量 
-
+  
                 msg_body_pose.pose.position.x = T_lidar(0);
                 msg_body_pose.pose.position.y = T_lidar(1);
                 msg_body_pose.pose.position.z = T_lidar(2);
