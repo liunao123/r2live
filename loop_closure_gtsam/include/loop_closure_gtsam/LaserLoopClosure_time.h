@@ -92,6 +92,7 @@ public:
     void saveGtsam2G2oFile(string outputFile);
     void setWorkPath(const std::string work_dir);
     void setTranslationThreshold(const double translation_threshold);
+    bool getOneLoop();
 
 private:
     bool LoadParameters();
@@ -189,6 +190,7 @@ private:
 
     // add by ln
     unsigned int loop_cnts_;
+    bool find_loop_;
     int detect_step_;
     double detect_time_regional_ ;
     // 记录时间回环的时间戳 成对

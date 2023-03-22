@@ -239,6 +239,14 @@ int orders[16] = {0, 2, 4, 6, 8, 10, 12, 14, 1, 3, 5, 7, 9, 11, 13, 15};
 
 void velo16_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
 {
+  // for (size_t i = 0; i < 3; i++)
+  // {
+  //   printf("--------- %s \n", msg->fields[i].name.c_str());
+  // }
+
+   printf("--------- %s \n",pcl::getFieldsList(*msg).c_str());
+  // return;
+  
   pcl::PointCloud<PointType> pl_orig;
   pcl::fromROSMsg(*msg, pl_orig);
   uint plsize = pl_orig.size();
@@ -255,14 +263,15 @@ void velo16_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
     ap.normal_z = 0;
     ap.intensity = pl_orig.points[i].intensity;
     // ap.curvature = pl_orig.points[i].time / 1000.0; // units: ms
-    
+    // printf(" 264 pl_orig.points[i].intensity %lf \n", pl_orig.points[i].intensity);
+
     double leng = sqrt(ap.x*ap.x + ap.y*ap.y);
     if(leng < blind)
     {
       continue;
     }
 
-    if(leng > 100.0)
+    if(leng > 200.0)
     {
       continue;
     }
@@ -292,7 +301,7 @@ void velo16_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
       continue;
     }
 
-    if(leng > 100)
+    if(leng > 200)
     {
       continue;
     }

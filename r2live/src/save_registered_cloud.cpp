@@ -71,36 +71,42 @@ Save_pointcloud::Save_pointcloud(ros::NodeHandle &nh)
 
 Save_pointcloud::~Save_pointcloud()
 {
-  // std_srvs::Trigger::Request req;
-  // std_srvs::Trigger::Response res;
+  std_srvs::Trigger::Request req;
+  std_srvs::Trigger::Response res;
   // service_sm(req, res);
-  std::cout << "original.pcd : " << map->width * map->height << std::endl;
-  pcl::io::savePCDFile("/home/map/" + std::string(pcd_time) + "_Save_cloud_registered_original.pcd", *map);
+  if (!map->points.empty())
+  {
+    std::cout << "pcd_name: " << pcd_time << std::endl;
+    pcl::io::savePCDFile("/home/map/" + std::string(pcd_time) + "_Save_cloud_registered_original.pcd", *map);
+    std::cout << "original.pcd : " << map->width * map->height << std::endl; 
+  }
 }
 
 bool Save_pointcloud::service_sm(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
 {
-
+  
   std::cout << "pcd_name: " << pcd_time << std::endl;
+  pcl::io::savePCDFile("/home/map/" + std::string(pcd_time) + "_Save_cloud_registered_original.pcd", *map);
 
   if (!map->points.empty())
   {
+    PointCloudXYZ temp_map = *map;
     std::cout << "size of map <before filter >: " << map->width * map->height << std::endl;
     downSizeFilterMap.setLeafSize(0.1f, 0.1f, 0.1f);
     downSizeFilterMap.setInputCloud(map);
-    downSizeFilterMap.filter(*map);
-    std::cout << "size of map <after filter >:  " << map->width * map->height << std::endl;
+    downSizeFilterMap.filter(temp_map);
+    std::cout << "size of map <after filter >:  " << temp_map.width * temp_map.height << std::endl;
     // 保存点云到指定路径
     std::cout << "START : save map to pcd file : "
               << "/home/map/" + std::string(pcd_time) + "_Save_cloud_registered_10.pcd" << std::endl;
-    pcl::io::savePCDFile("/home/map/" + std::string(pcd_time) + "_Save_cloud_registered_10.pcd", *map);
+    pcl::io::savePCDFile("/home/map/" + std::string(pcd_time) + "_Save_cloud_registered_10.pcd", temp_map);
     std::cout << "FINISH : save map to pcd file : "
               << "/home/map/" + std::string(pcd_time) + "_Save_cloud_registered_10.pcd" << std::endl;
 
-    downSizeFilterMap.setLeafSize(0.25f, 0.25f, 0.25f);
+    downSizeFilterMap.setLeafSize(0.2f, 0.2f, 0.2f);
     downSizeFilterMap.setInputCloud(map);
-    downSizeFilterMap.filter(*map);
-    pcl::io::savePCDFile("/home/map/" + std::string(pcd_time) + "_Save_cloud_registered_025.pcd", *map);
+    downSizeFilterMap.filter(temp_map);
+    pcl::io::savePCDFile("/home/map/" + std::string(pcd_time) + "_Save_cloud_registered_20.pcd", temp_map);
   }
   else
   {
@@ -119,6 +125,7 @@ void Save_pointcloud::save_map(const sensor_msgs::PointCloud2::ConstPtr &reg_pc)
   {
     /* code */
     map->points.clear();
+    cnts == 1;
     ROS_WARN("-------------- clear map: pointcloud is empty . -----------");
   }
 
@@ -157,8 +164,9 @@ int main(int argc, char **argv)
   if (argc == 2)
   {
     step = std::stoi(argv[1]);
-    std::cout << "step: " << step << std::endl;
   }
+  
+  std::cout << "step: " << step << std::endl;
   ros::NodeHandle nh;
 
   Save_pointcloud sm(nh);

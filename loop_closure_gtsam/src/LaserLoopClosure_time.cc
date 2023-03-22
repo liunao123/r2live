@@ -46,8 +46,8 @@ LaserLoopClosure::LaserLoopClosure() : key_(0),
                                        iLoopKeyM(0),
 
                                        loop_cnts_(0),
-                                       detect_time_regional_(3.0), // 在视觉回环发生的多少时间范围内，进行 点云匹配
-                                       detect_step_(2),           // 点云检测的步长，跳着去匹配
+                                       detect_time_regional_(2.5), // 在视觉回环发生的多少时间范围内，进行 点云匹配
+                                       detect_step_(2),            // 点云检测的步长，跳着去匹配
                                        work_dir_("/home/map/temp_test/")
 {
 }
@@ -123,6 +123,11 @@ void LaserLoopClosure::setWorkPath(const std::string work_dir)
     cout << " work_dir_ is : " << work_dir_ << endl;
 }
 
+bool LaserLoopClosure::getOneLoop()
+{
+    return find_loop_;
+}
+
 void LaserLoopClosure::setMapThreadDone()
 {
     bIsLoopThreadExitM= true;
@@ -145,7 +150,7 @@ bool LaserLoopClosure::Initialize()
     LoadParameters();
     std::cout << " LoadParameters end  : " << std::endl;
 
-    std::string folder_temp = "rm -r " + work_dir_ + "pose_graph/"; 
+    std::string folder_temp = "mv " + work_dir_ + "pose_graph " + work_dir_ + "pose_graph_bak/"; 
     system( folder_temp.c_str() );
     folder_temp =  "mkdir -p " +  work_dir_  + "SC/" ;
     system(folder_temp.c_str());
@@ -181,9 +186,9 @@ bool LaserLoopClosure::LoadParameters()
     // if (!pu::Get("loop_closure/relinearize_threshold", relinearize_threshold)) return false;
 
     // Load loop closing parameters.
-    translation_threshold_ = 0.25;  // 0.75
+    translation_threshold_ =  0.75;  // 0.75
     proximity_threshold_ = 25;     // 10
-    max_tolerable_fitness_ = 0.36;  // 0.36; 不要太高< less 0.5 >，否则错误的约束加到GTSAM里面后，无法优化出结果
+    max_tolerable_fitness_ = 0.90;  // 0.36; 不要太高< less 0.5 >，否则错误的约束加到GTSAM里面后，无法优化出结果 ,园区环境 0.5  默认的匹配参数
     skip_recent_poses_ = 10;       // 20
     maxLoopKeysYawM = 1.0; //1.05
     // if (!pu::Get("loop_closure/translation_threshold", translation_threshold_)) return false;
@@ -197,6 +202,7 @@ bool LaserLoopClosure::LoadParameters()
     icp_tf_epsilon_ = 0.0000000001;
     icp_corr_dist_ = 0.25;
     icp_iterations_ = 30;
+    
     // if (!pu::Get("icp/tf_epsilon", icp_tf_epsilon_)) return false;
     // if (!pu::Get("icp/corr_dist", icp_corr_dist_)) return false;
     // if (!pu::Get("icp/iterations", icp_iterations_)) return false;
@@ -661,17 +667,36 @@ bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr &scan1,
         return false;
     }
 
+    // ROS_ERROR("ssssssssssssssssssssss");
+
     // ICP：此处考虑了闭合时，机器人可能不是一个朝向，此时直接ICP可能匹配不上，这时候
     //利用pose1/2时的朝向的估计信息。转换后再匹配。
     pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+
+    // icp_tf_epsilon_ = 0.0000000001;
+    //  icp_corr_dist_ = 0.25;
+    //  icp_iterations_ = 30;
+
+    // icp_tf_epsilon_ = 0.000000001;
+    // icp_corr_dist_ = 5;
+    // icp_iterations_ = 100;
+
+    // double OutlierRejectionThreshold_ = 1.5 ;
+    // double EuclideanFitnessEpsilon_ = 0.05; 
 
     icp.setTransformationEpsilon(icp_tf_epsilon_);
     icp.setMaxCorrespondenceDistance(icp_corr_dist_);
     icp.setMaximumIterations(icp_iterations_);
     icp.setRANSACIterations(50);
 
-    // PointCloud LaserLoopClosure::filter_pointcloud(const PointCloud::ConstPtr pc)
+    // icp.setEuclideanFitnessEpsilon( EuclideanFitnessEpsilon_ );
+    // icp.setRANSACOutlierRejectionThreshold(OutlierRejectionThreshold_);
+    
+    dzlog_info("GICP param: gicp.getTransformationEpsilon(): %f , gicp.getMaxCorrespondenceDistance(): %f , gicp.getMaximumIterations(): %d, icp.getEuclideanFitnessEpsilon(): %f , icp.getRANSACOutlierRejectionThreshold(): %f . ", 
+               icp.getTransformationEpsilon(), icp.getMaxCorrespondenceDistance() , icp.getMaximumIterations() ,
+               icp.getEuclideanFitnessEpsilon() , icp.getRANSACOutlierRejectionThreshold() );
 
+    // PointCloud LaserLoopClosure::filter_pointcloud(const PointCloud::ConstPtr pc)
     // PointCloud scan1_filter = *scan1;
     // PointCloud scan2_filter = *scan2;
     // filter_pointcloud(scan1_filter);
@@ -685,6 +710,9 @@ bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr &scan1,
     // Perform ICP.
     PointCloud unused_result;
     icp.align(unused_result); //将2个关键帧配准
+    unused_result.height = 1;
+    unused_result.width = unused_result.size();
+    // ROS_ERROR("eeeeeeeeeeeeeeeeeeeeeeeeee");
 
     // Get resulting transform.
     const Eigen::Matrix4f T = icp.getFinalTransformation();
@@ -703,7 +731,7 @@ bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr &scan1,
 
     if (icp.getFitnessScore() > max_tolerable_fitness_)
     {
-        // dzlog_info("score %f ", icp.getFitnessScore());
+        dzlog_info("score %f ", icp.getFitnessScore());
         return false;
     }
 
@@ -824,7 +852,7 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
             continue;
         }
 
-        // dzlog_info("try DO GICP , with other_key is %u , key is %u ", other_key, key);
+        dzlog_info("try DO GICP , with other_key is %u <size: %ld >, key is %u <size: %ld > ", other_key,scan2->size(), key,  scan1->size() );
         // 从头到尾 依次检测，有可能出现：
         // 中间的回环将尾的位置 纠正到 离头的 位置很远，这样 位置差就不满足以下的关系了。
         // 由于已经从视觉回环上确定了大概的时间，此时对应的位置也基本确定，将其注释掉，问题不大。
@@ -832,6 +860,7 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
         // if (  (difference.translation.Norm() < proximity_threshold_) )
             //  && (fabs(difference.rotation.Yaw()) < maxLoopKeysYawM)
         // if( fabs(difference.rotation.Yaw()) < maxLoopKeysYawM )
+        if(1)
         {
             gu::Transform3 deltaTemp;
             LaserLoopClosure::Mat66 covarianceTemp;
@@ -839,6 +868,7 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
         
             if (PerformICP(scan1, scan2, pose1, pose2, &deltaTemp, &covarianceTemp, &fitnessReturn))
             {
+                dzlog_info("do icp ok . fitnessReturn is %f .", fitnessReturn);
                 static int icp_ok_cnts = 1;
                 // 找到一个闭环位姿
                 if (fitnessReturn < fitnessMin)
@@ -856,6 +886,7 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
 
     if (closed_loop)
     {
+        closed_loop = false;
         std::cout << __FILE__ << ":" << __LINE__ << "  choose one min score ...... " << std::endl;
 
         dzlog_info(" delta is: translation: %f, %f, %f .", delta.translation(0), delta.translation(1), delta.translation(2));
@@ -879,8 +910,12 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
         printf(" %uth loop closure between key %u and %u , fitnessMin %f , DIFF key = %u .  \n\n ", loop_cnts_, key, keyResut, fitnessMin, key - keyResut);
         std::cout << delta << std::endl;
 
+        // 找到回环
+        find_loop_ = true;
+        sleep(1) ;  // sleep 1 s 。让外部获取这个状态，维持 1s
+        find_loop_ = false;
     }
-    return closed_loop;
+    return true;
 }
 
 bool LaserLoopClosure::AddBetweenFactor(const gu::Transform3 &delta,
@@ -1025,10 +1060,10 @@ void LaserLoopClosure::loopClosureThread()
             // 三种情况，3、比 loop_time_first 晚的点云
             // 认为视觉回环的 detect_time_regional_ s内的点云 ， 也应该可以检测到回环,这样来缩小的搜索的范围
             // ROS_WARN("1. time diff %f. detect_time_regional_ %f", std::fabs( scan->header.stamp - loop_time_first ), detect_time_regional_);
-            if ( std::fabs( scan->header.stamp - loop_time_first ) < detect_time_regional_)
+            if ( std::fabs( scan->header.stamp - loop_time_first ) <= detect_time_regional_)
             {
-                dzlog_info("@@@@@@ loopClosureThread() iCurHdlKeyM = %u,  total_key_ = %u .", iKey, key_);
-                dzlog_info(" this key:%u time< %f > near have loop ......", iKey, loop_time_second);
+                // dzlog_info("@@@@@@ loopClosureThread() iCurHdlKeyM = %u,  total_key_ = %u .", iKey, key_);
+                // dzlog_info(" this key:%u time< %f > near have loop ......", iKey, loop_time_second);
                 FindLoopClosures(iKey, loop_time_second);
             }
         }

@@ -21,6 +21,11 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   message_generation
   std_msgs  
+  livox_ros_driver
+
+  sensor_msgs
+
+
 )
 
 
@@ -57,7 +62,7 @@ add_definitions(${PCL_DEFINITIONS})
 
 # 添加exec执行的依赖
 catkin_package(
-  CATKIN_DEPENDS roscpp rospy std_msgs message_runtime
+  CATKIN_DEPENDS roscpp rospy std_msgs message_runtime roscpp rospy sensor_msgs std_msgs
 )
 
 ###################################
@@ -126,10 +131,15 @@ include_directories(
 # target_link_libraries (${src_file}  ${catkin_LIBRARIES} ${PCL_LIBRARIES})
 
 
-# SET(src_file get_bds_by_two_odom)
-# add_executable (${src_file} src/${src_file}.cpp )
-# add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-# target_link_libraries (${src_file}  ${catkin_LIBRARIES} )
+SET(src_file undistorted)
+add_executable (${src_file} src/${src_file}.cpp )
+target_link_libraries (${src_file}  ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+SET(src_file get_bds_by_two_odom)
+add_executable (${src_file} src/${src_file}.cpp )
+add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries (${src_file}  ${catkin_LIBRARIES} )
 
 
 # SET(src_file optimize_map_tf)
@@ -150,15 +160,15 @@ include_directories(
 # add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 # target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${GTSAM_LIBRARY_DIRS} libzlog.a)
 
-SET(src_file loop_closure_gtsam)
-add_executable (${src_file} src/${src_file}.cpp src/LaserLoopClosure_time_service.cc)
-add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${GTSAM_LIBRARY_DIRS} libzlog.a)
+# SET(src_file loop_closure_gtsam)
+# add_executable (${src_file} src/${src_file}.cpp src/LaserLoopClosure_time_service.cc)
+# add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${GTSAM_LIBRARY_DIRS} libzlog.a)
 
-SET(src_file loop_closure_gtsam_tf2)
-add_executable (${src_file} src/${src_file}.cpp src/LaserLoopClosure_time_service.cc)
-add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${GTSAM_LIBRARY_DIRS} libzlog.a)
+# SET(src_file loop_closure_gtsam_tf2)
+# add_executable (${src_file} src/${src_file}.cpp src/LaserLoopClosure_time_service.cc)
+# add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${GTSAM_LIBRARY_DIRS} libzlog.a)
 
 
 SET(src_file down_filtered_pcd)
@@ -174,10 +184,10 @@ add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORT
 target_link_libraries (${src_file} ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
 
 
-SET(src_file reproject_r2live_path)
-add_executable (${src_file} src/${src_file}.cpp )
-add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries (${src_file} ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
+# SET(src_file reproject_r2live_path)
+# add_executable (${src_file} src/${src_file}.cpp )
+# add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# target_link_libraries (${src_file} ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
 
 # SET(src_file read_xml_)
 # add_executable (${src_file} src/${src_file}.cpp )
@@ -188,7 +198,7 @@ target_link_libraries (${src_file} ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
 SET(src_file rotation_pcd_to_horizon_pcl)
 add_executable (${src_file} src/${src_file}.cpp )
 add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries (${src_file} ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
+target_link_libraries (${src_file} ${PCL_LIBRARIES} )
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above

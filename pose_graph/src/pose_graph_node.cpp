@@ -104,7 +104,8 @@ void image_callback(const sensor_msgs::ImageConstPtr &image_msg)
     if(!LOOP_CLOSURE)
         return;
 
-    if (image_msg->header.stamp.toSec() - last_image_time < (1.0 / img_rate) || image_msg->header.stamp.toSec() < last_image_time)
+    double img_step = 1.0 / img_rate ;
+    if (image_msg->header.stamp.toSec() - last_image_time < img_step || image_msg->header.stamp.toSec() < last_image_time)
     {
         return;
     }

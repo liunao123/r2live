@@ -24,6 +24,7 @@
 #include <zlog.h>
 
 #include <std_srvs/Trigger.h>
+#include <std_msgs/Empty.h>
 
 using namespace sensor_msgs;
 using namespace message_filters;
@@ -89,26 +90,26 @@ bool startLoopDetect(loop_closure_gtsam::LoopTimePair::Request &req, loop_closur
   float x_second =  0;
   float y_second =  0;
 
-  for (; iter != lidar_pose.end(); iter++)
-  {
-    if( std::fabs( (*iter)->header.stamp.toSec() - req.first ) < 0.1 )
-    {
-      x_first = (*iter)->pose.position.x;
-      y_first = (*iter)->pose.position.y;
-    }
+  // for (; iter != lidar_pose.end(); iter++)
+  // {
+  //   if( std::fabs( (*iter)->header.stamp.toSec() - req.first ) < 0.2 )
+  //   {
+  //     x_first = (*iter)->pose.position.x;
+  //     y_first = (*iter)->pose.position.y;
+  //   }
 
-    if( std::fabs( (*iter)->header.stamp.toSec() - req.second ) < 0.1 )
-    {
-      x_second = (*iter)->pose.position.x;
-      y_second = (*iter)->pose.position.y;
-    }
+  //   if( std::fabs( (*iter)->header.stamp.toSec() - req.second ) < 0.2 )
+  //   {
+  //     x_second = (*iter)->pose.position.x;
+  //     y_second = (*iter)->pose.position.y;
+  //   }
 
-  }
+  // }
 
   // 时间戳对应的位姿，足够近，再去加入回环
-  // if(x_first * y_first * x_second * y_second != 0)
-  if( std::fabs( x_first - x_second ) < 5.0 && std::fabs( y_first - y_second ) < 5.0 )
-  {
+  // if(1)
+  if( std::fabs( x_first - x_second ) < 15.0 && std::fabs( y_first - y_second ) < 15.0 )
+  {    
     llc.setOneLoopTime(req.first, req.second);
     ROS_WARN("get a vision loop time pair. time pair is %f. %f",  req.first, req.second );
   }
@@ -160,14 +161,24 @@ int main(int argc, char **argv)
 
   ros::ServiceServer server = nh.advertiseService("/get_loop_closure", startLoopDetect);
   ros::ServiceServer server_end_gtsam = nh.advertiseService("/end_gtsam", endGtsamProcess);
+  
+  ros::Publisher pub = nh.advertise<std_msgs::Empty>("/map_loop_closure", 10);
+  std_msgs::Empty msg;
 
   llc.Initialize();
 
-  ros::Rate rate_hz(10);
+  ros::Rate rate_hz(1); // getOneLoop() 会把 得到回环的状态 保持 1s . 所以1hz的 频率去判断 应该不会漏
   while ( ros::ok() )
   { 
     rate_hz.sleep();
     ros::spinOnce();
+
+    if ( llc.getOneLoop() ) // 判断有无回环发生
+    {
+        pub.publish(msg);
+        ROS_INFO("pub loop . ");
+    }
+
     if ( Exit_this )
     {
       ROS_INFO("loop_closure_gtsam node exit . ");
