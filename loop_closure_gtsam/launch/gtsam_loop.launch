@@ -1,8 +1,22 @@
 <launch>
 
-    <node pkg="loop_closure_gtsam" type="loop_closure_gtsam" name="loop_closure_gtsam_online"  output="screen">
-    </node>
-    <node pkg="r2live" type="save_registered_cloud" name="save_registered_cloud"  output="screen"/>
+    <node pkg="loop_closure_gtsam" type="loop_closure_gtsam" name="loop_closure"  output="screen">
+      <param name="check_for_loop_closures" type="bool"   value="true" />
+      <param name="translation_threshold"   type="double" value="0.50" />
+      <param name="gicp_fitness"            type="double" value="0.640" />
+      <param name="detect_time_regional"    type="double" value="3.0" />
+      <param name="detect_step"             type="int"    value="2" />
 
+      <!-- GICP的默认参数 -->
+      <param name="gicp_tf_epsilon"    type="double" value="0.0003" />
+      <param name="gicp_corr_dist"     type="double" value="5.0" />
+      <param name="gicp_iterations"    type="int"    value="200" />
+
+      <remap from="/livox_surf_point" to="/rslidar_points"/>
+      <!-- <remap from="/livox_surf_point" to="/velodyne_points"/> -->
+
+    </node>
+    
+    <include file="$(find pose_graph)/launch/pose_graph_v2.launch" />
     
 </launch>

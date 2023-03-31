@@ -1,0 +1,18 @@
+<launch>
+<!-- output="screen"   -->
+        <node name="base_nav" pkg="base_controller" type="base_nav" required="true" output="screen"/>
+
+
+        <node pkg="tf" type="static_transform_publisher" name="imu_link" args="-0.06 0.0055 0.202 0 0 0 1 base_footprint imu 100"/>
+
+        <node pkg="robot_pose_ekf" type="robot_pose_ekf" name="robot_pose_ekf">
+        <param name="output_frame" value="odom"/>
+        <param name="freq" value="20.0"/>
+        <param name="sensor_timeout" value="1.0"/>
+        <param name="odom_used" value="true"/>
+        <param name="imu_used" value="true"/>
+        <param name="vo_used" value="false"/>
+        <param name="debug" value="false"/>
+        <param name="self_diagnose" value="false"/>
+        </node>
+</launch>

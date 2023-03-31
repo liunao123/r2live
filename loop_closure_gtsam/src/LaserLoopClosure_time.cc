@@ -1,30 +1,31 @@
 #include "loop_closure_gtsam/LaserLoopClosure_time.h"
 #include <geometry_utils/GeometryUtilsROS.h>
 #include <parameter_utils/ParameterUtils.h>
-// #include <velodyne_slam/KeyedScan.h>
-// #include <velodyne_slam/PoseGraph.h>
-#include <std_msgs/Empty.h>
 #include <visualization_msgs/Marker.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/surface/gp3.h>
 #include <pcl/registration/gicp.h>
 #include <pcl_conversions/pcl_conversions.h>
-
 #include <pcl/filters/filter.h>
+#include <pcl/filters/crop_box.h>
 #include <pcl/filters/radius_outlier_removal.h>
 #include <pcl/filters/conditional_removal.h>
-#include <pcl/filters/voxel_grid.h>
-
+#include <std_msgs/Empty.h>
+#include <std_msgs/Int8.h>
 #include <thread>
 #include <zlog.h>
 #include <iostream>
 #include <cstdlib>
 #include <ctime>
 #include <chrono>
+#include <sys/stat.h>
 
 namespace gu = geometry_utils;
 namespace gr = gu::ros;
 namespace pu = parameter_utils;
+
+using namespace sensor_msgs;
+using namespace message_filters;
 
 using gtsam::BetweenFactor;
 using gtsam::ISAM2;
@@ -37,147 +38,157 @@ using gtsam::Values;
 using gtsam::Vector3;
 using gtsam::Vector6;
 
-LaserLoopClosure::LaserLoopClosure() : key_(0),
-                                       last_closure_key_(0),
-                                       bIsLoopCheckedM(false),
-                                       bIsLoopThreadExitM(false),
-                                       bIsGetSaveMapM(false),
-                                       iCurHdlKeyM(0),
-                                       iLoopKeyM(0),
-
-                                       loop_cnts_(0),
-                                       detect_time_regional_(2.5), // 在视觉回环发生的多少时间范围内，进行 点云匹配
-                                       detect_step_(2),            // 点云检测的步长，跳着去匹配
-                                       work_dir_("/home/map/temp_test/")
+LidarLoopClosure::LidarLoopClosure() :
+key_(0),
+last_closure_key_(0),
+keyframeCntM(0),
+bIsLoopThreadExitM(false),
+bIsCheckLoopClosureM(true),
+iCurHdlKeyM(0),
+iLoopKeyM(0),
+loop_cnts_(0),
+detect_time_regional_(2.5), // 在视觉回环发生的多少时间范围内，进行点云匹配
+detect_step_(2),            // 点云检测的步长，跳着去匹配
+strWorkDirM("/home/map/")
 {
 }
 
-LaserLoopClosure::~LaserLoopClosure()
+LidarLoopClosure::~LidarLoopClosure()
 {
 }
 
-void LaserLoopClosure::saveMap()
+void LidarLoopClosure::saveMap(int regionID, int mapID)
 {
-    cout << "start save map and  optimized path , waiting please ......" << endl;
-    std::cout << __FILE__ << ":" << __LINE__ << "  loopClosure Check DONE, SAVE pointcloud map .  " << std::endl;
-    // 最后再优化一次
-    values_ = isam_->calculateEstimate();
-
-	saveGtsam2G2oFile(work_dir_ + "loop_gtsam_optimized.g2o");
+    dzlog_info("@@@@@@ saveMap() IN,regionID = %d,mapID = %d",regionID,mapID);
 
     PointCloud *points = new PointCloud();
-    GetMaximumLikelihoodPoints(points); // points->makeShared()
+    GetMaximumLikelihoodPoints(points);
 
-    std::string name = work_dir_ + "optimized_map_gtsam.pcd";
+    std::string strPath = strWorkDirM + "region" + std::to_string(regionID) + "_";
+    strPath += std::to_string(mapID);
+
+    struct stat info;
+    if (stat(strPath.c_str(), &info) != 0) 
+    { // stat()函数返回0表示成功
+    } 
+    else if (info.st_mode & S_IFDIR)
+    { // S_IFDIR表示文件夹类型
+        system( ("mv " + strPath + " " + strPath + "_bak" ).c_str() );   //先备份一下
+        dzlog_info("create a bak folder : %s.", (strPath + "_bak").c_str());
+    }
+    
+    system(("mkdir -p " + strPath).c_str());              //创建一个
+
+    if( points->points.empty() )
+    {
+        dzlog_info(" points is enpty , return .");
+        return;
+    }
+    std::string name = strPath + "/saveMap_all.pcd";
+    std::string name2 = strPath + "/saveMap.pcd";
     pcl::io::savePCDFile(name, *points);
-    cout << "map path is :" << name << endl;
+    dzlog_info("@@@@@@ saveMap() name = %s,name2 = %s",name.c_str(),name2.c_str());
 
-    cout << "before filter size is :"  << points->points.size() << endl;
+    dzlog_info("@@@@@@ saveMap() before filter size is %d:",points->points.size());
     pcl::VoxelGrid<pcl::PointXYZ> downSizeFilterTempMap;
     downSizeFilterTempMap.setLeafSize(0.2f , 0.2f, 0.2f);
     downSizeFilterTempMap.setInputCloud((*points).makeShared());
     downSizeFilterTempMap.filter(*points);
-    cout << __FILE__ << ":" << __LINE__ << " after filter size is <0.1f >:"  << points->points.size() << endl;
-    name = work_dir_ + "optimized_map_gtsam_1dm.pcd";
-    pcl::io::savePCDFile(name, *points);
+    dzlog_info("@@@@@@ saveMap() after  filter size is %d:",points->points.size());
 
-    cout << "save map ok, you can exit ......" << endl;
+    pcl::io::savePCDFile(name2, *points);
+    dzlog_info("@@@@@@ saveMap() save map ok !!!");
 }
 
-void LaserLoopClosure::setVisionLoopTime(const std::vector<std::pair<double, double>> &loop_time)
+void LidarLoopClosure::setVisionLoopTime(const std::vector<std::pair<double, double>> &loop_time)
 {
     loop_time_ = loop_time;
-    cout << "Vision loop counts is : " << loop_time_.size() << endl;
     dzlog_info("Vision loop counts is : %d .", loop_time_.size());
 }
 
-void LaserLoopClosure::setOneLoopTime(const double first, const double second)
+void LidarLoopClosure::setOneLoopTime(const double first, const double second)
 {
     // 加锁 ，防止和后面pop的动作冲突
     std::lock_guard<std::mutex> lock(keyScanMutexM);
 
     if (loop_time_queue.empty())
     {
-        // g_Mutex.lock();
+        g_Mutex.lock();
         loop_time_queue.push(std::make_pair(first, second));
-        // g_Mutex.unlock();
+        g_Mutex.unlock();
     }
     else
     {
-        if (std::fabs(loop_time_queue.back().first - first) > 2.0 || std::fabs(loop_time_queue.back().second - second) > 2.0)
+        if (std::fabs(loop_time_queue.back().first - first) > 5.0 || std::fabs(loop_time_queue.back().second - second) > 5.0)
         {
-            // g_Mutex.lock();
+            g_Mutex.lock();
             loop_time_queue.push(std::make_pair(first, second));
-            // g_Mutex.unlock();
+            g_Mutex.unlock();
         }
     }
 
-    cout << "get a vision loop time pair. loop_time_queue size is: "  << loop_time_queue.size() << endl;
     dzlog_info("get a vision loop time pair. loop_time_queue size is: %d" , loop_time_queue.size() );
-
 }
 
-void LaserLoopClosure::setWorkPath(const std::string work_dir)
+void LidarLoopClosure::setWorkPath(const std::string work_dir)
 {
-    work_dir_ = work_dir;
-    cout << " work_dir_ is : " << work_dir_ << endl;
+    strWorkDirM = work_dir;
+    dzlog_info("@@@@@@ strWorkDirM is %s",strWorkDirM.c_str());
 }
 
-bool LaserLoopClosure::getOneLoop()
+void LidarLoopClosure::setMapThreadDone()
 {
-    return find_loop_;
+    bIsLoopThreadExitM = true;
 }
 
-void LaserLoopClosure::setMapThreadDone()
-{
-    bIsLoopThreadExitM= true;
-}
-
-
-void LaserLoopClosure::setTranslationThreshold(const double translation_threshold)
+void LidarLoopClosure::setTranslationThreshold(const double translation_threshold)
 {
     translation_threshold_ = translation_threshold;
-    // cout << " Reset translation_threshold value,  now is : " << translation_threshold_ << endl;
 }
 
-bool LaserLoopClosure::Initialize()
+bool LidarLoopClosure::Initialize(const ros::NodeHandle &n)
 {
+    if (!LoadParameters())
+    {
+        dzlog_info("@@@@@@ Initialize() Failed to load parameters.");
+        return false;
+    }
+
+    if (!RegisterCallbacks(n))
+    {
+        dzlog_info("@@@@@@ Initialize() Failed to register callbacks.");
+        return false;
+    }
+
     //***create loopclosure thread***//
-    std::thread t1(&LaserLoopClosure::loopClosureThread, this);
+    std::thread t1(&LidarLoopClosure::loopClosureThread, this);
     t1.detach();
 
-    std::cout << " LoadParameters start  : " << std::endl;
-    LoadParameters();
-    std::cout << " LoadParameters end  : " << std::endl;
-
-    std::string folder_temp = "mv " + work_dir_ + "pose_graph " + work_dir_ + "pose_graph_bak/"; 
-    system( folder_temp.c_str() );
-    folder_temp =  "mkdir -p " +  work_dir_  + "SC/" ;
-    system(folder_temp.c_str());
-    folder_temp =  "mkdir -p " +  work_dir_  + "icp/" ;
-    system(folder_temp.c_str());
+    std::string folder_temp = "mv " + strWorkDirM + "pose_graph " + strWorkDirM + "pose_graph_bak/";
+    int iRtn = system(folder_temp.c_str());
+    // folder_temp =  "mkdir -p " +  strWorkDirM  + "SC/" ;
+    // iRtn = system(folder_temp.c_str());
+    folder_temp =  "mkdir -p " +  strWorkDirM  + "icp/" ;
+    iRtn = system(folder_temp.c_str());
     return true;
 }
 
-void LaserLoopClosure::filter_pointcloud(PointCloud &pc)
+void LidarLoopClosure::filter_pointcloud(PointCloud &pc)
 {
     // downsample clouds
+    // dzlog_info("original <size: %ld > ", pc.size() );
     pcl::VoxelGrid<pcl::PointXYZ> vg;
     vg.setLeafSize(0.1f, 0.1f, 0.1f);
     vg.setInputCloud(pc.makeShared());
     vg.filter(pc);
+    // dzlog_info("filtered <size: %ld > ", pc.size() );
+
 }
 
-bool LaserLoopClosure::LoadParameters()
+bool LidarLoopClosure::LoadParameters()
 {
-    /* */
-    // Load frame ids.
-    // if (!pu::Get("frame_id/fixed", fixed_frame_id_)) return false;
-    // if (!pu::Get("frame_id/base", base_frame_id_)) return false;
-
     // Should we turn loop closure checking on or off?
-    check_for_loop_closures_ = true;
-    // if (!pu::Get("loop_closure/check_for_loop_closures", check_for_loop_closures_)) return false;
+    if (!pu::Get("loop_closure/check_for_loop_closures", bIsCheckLoopClosureM)) return false;
 
     // Load ISAM2 parameters.
     unsigned int relinearize_skip = 1; // 1
@@ -186,11 +197,24 @@ bool LaserLoopClosure::LoadParameters()
     // if (!pu::Get("loop_closure/relinearize_threshold", relinearize_threshold)) return false;
 
     // Load loop closing parameters.
-    translation_threshold_ =  0.75;  // 0.75
-    proximity_threshold_ = 25;     // 10
-    max_tolerable_fitness_ = 0.90;  // 0.36; 不要太高< less 0.5 >，否则错误的约束加到GTSAM里面后，无法优化出结果 ,园区环境 0.5  默认的匹配参数
+    translation_threshold_ =  1.0;  // 0.75
+    proximity_threshold_ = 15;     // 10
+    max_tolerable_fitness_ = 0.80;  // 0.36; 不要太高< less 0.5 >，否则错误的约束加到GTSAM里面后，无法优化出结果 ,园区环境 0.5  默认的匹配参数
     skip_recent_poses_ = 10;       // 20
     maxLoopKeysYawM = 1.0; //1.05
+
+    pu::Get("loop_closure/translation_threshold", translation_threshold_);
+    dzlog_info("translation_threshold_ : %f", translation_threshold_ );
+
+    pu::Get("loop_closure/gicp_fitness", max_tolerable_fitness_);
+    dzlog_info("max_tolerable_fitness_ : %f", max_tolerable_fitness_ );
+
+    pu::Get("loop_closure/detect_time_regional", detect_time_regional_);
+    dzlog_info("detect_time_regional_ : %f", detect_time_regional_ );
+
+    pu::Get("loop_closure/detect_step", detect_step_);
+    dzlog_info("detect_step_ : %d", detect_step_ );
+
     // if (!pu::Get("loop_closure/translation_threshold", translation_threshold_)) return false;
     // if (!pu::Get("loop_closure/proximity_threshold", proximity_threshold_)) return false;
     // if (!pu::Get("loop_closure/max_tolerable_fitness", max_tolerable_fitness_)) return false;
@@ -199,13 +223,18 @@ bool LaserLoopClosure::LoadParameters()
     // dzlog_info("@@@@@@ LoadParameters() maxLoopKeysYawM = %f",maxLoopKeysYawM);
 
     // Load ICP parameters.
-    icp_tf_epsilon_ = 0.0000000001;
-    icp_corr_dist_ = 0.25;
-    icp_iterations_ = 30;
+    // icp_tf_epsilon_ = 0.0000000001;
+    // icp_corr_dist_ = 0.25;
+    // icp_iterations_ = 30;
     
-    // if (!pu::Get("icp/tf_epsilon", icp_tf_epsilon_)) return false;
-    // if (!pu::Get("icp/corr_dist", icp_corr_dist_)) return false;
-    // if (!pu::Get("icp/iterations", icp_iterations_)) return false;
+    pu::Get("loop_closure/gicp_tf_epsilon", icp_tf_epsilon_);
+    dzlog_info("icp_tf_epsilon_ : %f", icp_tf_epsilon_ );
+
+    pu::Get("loop_closure/gicp_corr_dist", icp_corr_dist_);
+    dzlog_info("icp_corr_dist_ : %f", icp_corr_dist_ );
+
+    pu::Get("loop_closure/gicp_iterations", icp_iterations_);
+    dzlog_info("icp_iterations_ : %d", icp_iterations_ );
 
     // Load initial position and orientation.
 
@@ -253,8 +282,7 @@ bool LaserLoopClosure::LoadParameters()
     // Set the covariance on initial position.
     Vector6 noise;
     noise << sigma_x, sigma_y, sigma_z, sigma_roll, sigma_pitch, sigma_yaw;
-    LaserLoopClosure::Diagonal::shared_ptr covariance(
-        LaserLoopClosure::Diagonal::Sigmas(noise));
+    Diagonal::shared_ptr covariance(Diagonal::Sigmas(noise));
 
     // Initialize ISAM2.
     NonlinearFactorGraph new_factor;
@@ -273,38 +301,178 @@ bool LaserLoopClosure::LoadParameters()
     return true;
 }
 
-void LaserLoopClosure::GetMaximumLikelihoodPoints(PointCloud *points)
+bool LidarLoopClosure::RegisterCallbacks(const ros::NodeHandle &n)
+{
+    ros::NodeHandle nl(n);
+    // message_filters::Subscriber<geometry_msgs::PoseStamped> sub_lidar_pose(nl, "/lidar_pose", 10);
+    // message_filters::Subscriber<sensor_msgs::PointCloud2> sub_surf_points(nl, "/livox_surf_point", 10);
+
+    // ExactTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
+    // typedef sync_policies::ExactTime<geometry_msgs::PoseStamped, sensor_msgs::PointCloud2> MySyncPolicy;
+    // Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), sub_body_pose, sub_surf_points);
+
+    sub_lidar_pose = new message_filters::Subscriber<geometry_msgs::PoseStamped>(nl, "/lidar_pose", 10);
+    sub_surf_points  = new  message_filters::Subscriber<sensor_msgs::PointCloud2>(nl, "/livox_surf_point", 10);
+    sync = new message_filters::Synchronizer<MySyncPolicy>(MySyncPolicy(10), *sub_lidar_pose, *sub_surf_points);
+    sync->registerCallback(boost::bind(&LidarLoopClosure::add_pose_and_scan_to_gtsam_callback,this, _1, _2));
+
+    server   = nl.advertiseService("/get_loop_closure", &LidarLoopClosure::startLoopDetect,this);
+    sub_saveMap   = nl.subscribe("/save_map", 1, &LidarLoopClosure::saveMapCallBack,this);
+    pubLoopFindM   = nl.advertise<std_msgs::Empty>("/map_loop_closure", 10);
+    pubSaveMapStsM = nl.advertise<std_msgs::Int8>("/map_save_status", 10);
+
+    return true;
+}
+
+void LidarLoopClosure::add_pose_and_scan_to_gtsam_callback(const geometry_msgs::PoseStampedConstPtr &pose,
+                                                           const PointCloud2ConstPtr &scan)
+{
+    //vecLidarPoseM.push_back(pose);
+    geometry_utils::Vector3Base<double> posi_i(pose->pose.position.x,
+                                               pose->pose.position.y,
+                                               pose->pose.position.z);
+    geometry_utils::Rotation3Base<double> ori_i(geometry_utils::QuaternionBase<double>(pose->pose.orientation.w,
+                                                                                       pose->pose.orientation.x,
+                                                                                       pose->pose.orientation.y,
+                                                                                       pose->pose.orientation.z));
+    geometry_utils::Transform3 pose_i(posi_i, ori_i);
+
+    //输出的 pcl 类型
+    PointCloud::Ptr cloud(new PointCloud);
+    pcl::fromROSMsg(*scan, *cloud);
+    cloud->header.stamp = scan->header.stamp.toSec() ;
+    cloud->header.frame_id = cloud->header.frame_id;
+
+    static pcl::CropBox<pcl::PointXYZ> cropBoxFilter (true);
+    const float range = 2.0 ;
+    cropBoxFilter.setInputCloud (cloud);
+    cropBoxFilter.setMin (Eigen::Vector4f  (-range, -range, -range, 1.0f));
+    cropBoxFilter.setMax (Eigen::Vector4f  (range, range, range, 1.0f));
+    cropBoxFilter.setNegative(true);
+    cropBoxFilter.filter (*cloud);
+
+    // range = 200.0 ;
+    // cropBoxFilter.setInputCloud (cloud);
+    // cropBoxFilter.setMin (Eigen::Vector4f  (-range, -range, -1, 1.0f));
+    // cropBoxFilter.setMax (Eigen::Vector4f  (range, range, 30, 1.0f));
+    // cropBoxFilter.setNegative(false);
+    // cropBoxFilter.filter (*cloud);
+
+    // PointCloud scan1_filter = *cloud;
+    // filter_pointcloud(scan1_filter);
+    // scan1_filter.header.stamp = scan->header.stamp.toSec();
+
+    // 第一帧点云 单独插入进去
+    // print("inter cbk  . ");
+
+    geometry_utils::Transform3 delta = geometry_utils::PoseDelta(lastPoseM, pose_i);
+    lastPoseM = pose_i;
+
+    if (!addPoseAndKeyScan(delta, cloud))
+    {
+        return;
+    }
+        // ROS_ERROR("add ok ");
+
+    // save sth for interactive slam
+    std::stringstream ss;
+    ss << setw(6) << setfill('0') << keyframeCntM;
+    string one_path = strWorkDirM + "pose_graph/" + ss.str();
+    std::string mkf =  "mkdir -p " + one_path;
+    int iRtn = system(mkf.c_str());
+    pcl::io::savePCDFile( one_path + "/cloud.pcd", *cloud);
+    // save data file
+    ofstream pose_data( one_path + "/data", ios::out);
+    pose_data
+        << "stamp " << int( scan->header.stamp.toSec() ) << " 0" << endl //一定要是 int 的 time
+        <<  "estimate" << endl << fixed << setprecision(10)
+        << pose_i.rotation(0) << " " << pose_i.rotation(1) << " " << pose_i.rotation(2) << " " << pose_i.translation(0) << endl
+        << pose_i.rotation(3) << " " << pose_i.rotation(4) << " " << pose_i.rotation(5) << " " << pose_i.translation(1) << endl
+        << pose_i.rotation(6) << " " << pose_i.rotation(7) << " " << pose_i.rotation(8) << " " << pose_i.translation(2) << endl
+        << "0 0 0 1" << endl
+        << "odom" << endl
+        << pose_i.rotation(0) << " " << pose_i.rotation(1) << " " << pose_i.rotation(2) << " " << pose_i.translation(0) << endl
+        << pose_i.rotation(3) << " " << pose_i.rotation(4) << " " << pose_i.rotation(5) << " " << pose_i.translation(1) << endl
+        << pose_i.rotation(6) << " " << pose_i.rotation(7) << " " << pose_i.rotation(8) << " " << pose_i.translation(2) << endl
+        << "0 0 0 1" << endl
+        << "id " << keyframeCntM << endl;
+    pose_data.close();
+
+        // 会覆盖已经有的文件
+    static std::ofstream odom_pose(strWorkDirM + "key_odom_pose.txt", ios::out);
+    odom_pose.open(strWorkDirM + "key_odom_pose.txt", ios::app);
+    odom_pose << std::to_string( scan->header.stamp.toSec() )<< " "
+            << pose->pose.position.x << " "
+            << pose->pose.position.y << " "
+            << pose->pose.position.z << " "
+            << pose->pose.orientation.x << " "
+            << pose->pose.orientation.y << " "
+            << pose->pose.orientation.z << " "
+            << pose->pose.orientation.w << endl;
+    odom_pose.close();
+
+
+
+    keyframeCntM++;
+
+}
+
+bool LidarLoopClosure::startLoopDetect(loop_closure_gtsam::LoopTimePair::Request &req,
+                                       loop_closure_gtsam::LoopTimePair::Response &res)
+{
+    // 遍历出 距离这个两个时间戳最近的位姿，如果距离过大就不处理这个时间戳对
+    // float x_first  = 0;
+    // float y_first  = 0;
+    // float x_second = 0;
+    // float y_second = 0;
+
+    // 时间戳对应的位姿，足够近，再去加入回环
+    // if (std::fabs( x_first - x_second ) < 15.0 && std::fabs( y_first - y_second ) < 15.0)
+    if (1)
+    {
+        setOneLoopTime(req.first, req.second);
+        dzlog_info("get a vision loop time pair. time pair is %f. %f",req.first,req.second);
+    }
+    // dzlog_info("Dx , Dy position is: %f. %f ",x_first - x_second,y_first - y_second);
+    return true;
+}
+
+void LidarLoopClosure::saveMapCallBack(const base_controller::CSGMapInfo &saveMapMsg)
+{
+    dzlog_info("@@@@@@ saveMapCallBack() regionID = %d,mapID = %d",saveMapMsg.iRegionID,saveMapMsg.iMapID);
+    setMapThreadDone();
+    saveMap(saveMapMsg.iRegionID,saveMapMsg.iMapID);
+
+    std_msgs::Int8 msg;
+    msg.data = 100;
+    pubSaveMapStsM.publish(msg);
+}
+
+void LidarLoopClosure::GetMaximumLikelihoodPoints(PointCloud *points)
 {
     if (points == NULL)
     {
-        dzlog_info("%s: Output point cloud container is null.", name_.c_str());
+        dzlog_info("@@@@@@ GetMaximumLikelihoodPoints() point container is null.");
         return;
     }
     points->points.clear();
-    
-    cout << work_dir_ << endl;
-    cout << "start save gtsam pose, graph.g2o, sth for interactive_slam. wait ...... " << endl;
 
     // 会覆盖已经有的文件
-    ofstream GTSAM_pose(work_dir_ + "GTSAM_pose.txt", ios::out);
+    ofstream GTSAM_pose(strWorkDirM + "GTSAM_pose.txt", ios::out);
 
     // 先清空文件夹
-    system( ("rm -r " + work_dir_ + "pose_graph/" ).c_str() );
-    
-    string SC_path = work_dir_  + "SC/" ;
-    std::string mk_sc_f =  "mkdir -p " + SC_path;
-    system(mk_sc_f.c_str());
+    // int iRtn = system( ("rm -r " + strWorkDirM + "pose_graph/" ).c_str() );
+    // string SC_path = strWorkDirM  + "SC/" ;
+    // std::string mk_sc_f =  "mkdir -p " + SC_path;
+    // iRtn = system(mk_sc_f.c_str());
 
     // Iterate over poses in the graph, transforming their corresponding laser
     // scans into world frame and appending them to the output.
     for (const auto &keyed_pose : values_)
     {
         const unsigned int key = keyed_pose.key;
-
-        // int temp = int();
         if (key % 500 == 0)
         {
-            // cout << "haved save " << temp << "% . " << endl;
             cout  << int ((1.0 * key) / (1.0 * key_) * 100) << "%. " ;
         }
         // Check if this pose is a keyframe. If it's not, it won't have a scan
@@ -323,19 +491,13 @@ void LaserLoopClosure::GetMaximumLikelihoodPoints(PointCloud *points)
 
         // Append the world-frame point cloud to the output.
         *points += scan_world;
-
+/*
         // save sth for interactive slam
         std::stringstream ss;
         ss << setw(6) << setfill('0') << key;
-        // cout << ss.str() << endl;
-
-        string one_path = work_dir_ + "pose_graph/" + ss.str();
-
-        // std::string rmf =  "rm -r " + one_path;
-        // system(rmf.c_str());
-
+        string one_path = strWorkDirM + "pose_graph/" + ss.str();
         std::string mkf =  "mkdir -p " + one_path;
-        system(mkf.c_str());
+        int iRtn = system(mkf.c_str());
 
         // save pcd
         PointCloud::Ptr scan(new PointCloud);
@@ -359,21 +521,16 @@ void LaserLoopClosure::GetMaximumLikelihoodPoints(PointCloud *points)
             << "id " << key << endl;
 
         pose_data.close();
-
-        //  result for sc
-        // pcl::io::savePCDFile( SC_path + std::to_string(key) + ".pcd", *scan);
-
-        // system( ( "cp " + one_path + "/data " + SC_path + std::to_string(key) + ".odom"  ).c_str() );
-        
+*/
         // 跳过第一个，因为第一个是0
-        if (key < 2)
+        if (key < 1)
             continue;
 
         // 往上面的文件里写
         GTSAM_pose.setf(ios::fixed, ios::floatfield);
-        GTSAM_pose.precision(10);
+        GTSAM_pose.precision(15);
         //  GTSAM_pose << key  << " ";
-        GTSAM_pose << keyed_scans_[key]->header.stamp << " ";
+        GTSAM_pose << keyed_scans_[key]->header.stamp  << " ";
         GTSAM_pose.precision(5);
 
         Eigen::Vector3d correct_t(pose.translation.Eigen());
@@ -388,13 +545,14 @@ void LaserLoopClosure::GetMaximumLikelihoodPoints(PointCloud *points)
             << correct_q.z() << " "
             << correct_q.w() << endl;
     }
-    saveGtsam2G2oFile(work_dir_ + "pose_graph/graph.g2o");
-    // 把上面的文件 关闭
+    // 把上面的文件关闭
     GTSAM_pose.close();
 
+    values_ = isam_->calculateEstimate();
+    saveGtsam2G2oFile(strWorkDirM + "pose_graph/graph.g2o");
 }
 
-gu::Transform3 LaserLoopClosure::GetLastPose() const
+gu::Transform3 LidarLoopClosure::GetLastPose() const
 {
     unsigned int lastKey = (key_ > 1) ? (key_ - 1) : 0;
     Pose3 lastKeyPose = values_.at<Pose3>(lastKey);
@@ -406,7 +564,7 @@ gu::Transform3 LaserLoopClosure::GetLastPose() const
     return ToGu(curPose);
 }
 
-gu::Transform3 LaserLoopClosure::ToGu(const Pose3 &pose) const
+gu::Transform3 LidarLoopClosure::ToGu(const Pose3 &pose) const
 {
     gu::Transform3 out;
     out.translation(0) = pose.translation().x();
@@ -418,11 +576,10 @@ gu::Transform3 LaserLoopClosure::ToGu(const Pose3 &pose) const
         for (int j = 0; j < 3; ++j)
             out.rotation(i, j) = pose.rotation().matrix()(i, j);
     }
-
     return out;
 }
 
-Pose3 LaserLoopClosure::ToGtsam(const gu::Transform3 &pose) const
+Pose3 LidarLoopClosure::ToGtsam(const gu::Transform3 &pose) const
 {
     Vector3 t;
     t(0) = pose.translation(0);
@@ -436,12 +593,12 @@ Pose3 LaserLoopClosure::ToGtsam(const gu::Transform3 &pose) const
     return Pose3(r, t);
 }
 
-LaserLoopClosure::Mat66 LaserLoopClosure::ToGu(
-    const LaserLoopClosure::Gaussian::shared_ptr &covariance) const
+Mat66 LidarLoopClosure::ToGu(
+    const Gaussian::shared_ptr &covariance) const
 {
     gtsam::Matrix66 gtsam_covariance = covariance->covariance();
 
-    LaserLoopClosure::Mat66 out;
+    Mat66 out;
     for (int i = 0; i < 6; ++i)
         for (int j = 0; j < 6; ++j)
             out(i, j) = gtsam_covariance(i, j);
@@ -449,8 +606,8 @@ LaserLoopClosure::Mat66 LaserLoopClosure::ToGu(
     return out;
 }
 
-LaserLoopClosure::Gaussian::shared_ptr LaserLoopClosure::ToGtsam(
-    const LaserLoopClosure::Mat66 &covariance) const
+Gaussian::shared_ptr LidarLoopClosure::ToGtsam(
+    const Mat66 &covariance) const
 {
     gtsam::Matrix66 gtsam_covariance;
 
@@ -461,69 +618,22 @@ LaserLoopClosure::Gaussian::shared_ptr LaserLoopClosure::ToGtsam(
     return Gaussian::Covariance(gtsam_covariance);
 }
 
-PriorFactor<Pose3> LaserLoopClosure::MakePriorFactor(
+PriorFactor<Pose3> LidarLoopClosure::MakePriorFactor(
     const Pose3 &pose,
-    const LaserLoopClosure::Diagonal::shared_ptr &covariance)
+    const Diagonal::shared_ptr &covariance)
 {
     return PriorFactor<Pose3>(key_, pose, covariance);
 }
 
-BetweenFactor<Pose3> LaserLoopClosure::MakeBetweenFactor(
+BetweenFactor<Pose3> LidarLoopClosure::MakeBetweenFactor(
     const Pose3 &delta,
-    const LaserLoopClosure::Gaussian::shared_ptr &covariance)
+    const Gaussian::shared_ptr &covariance)
 {
-    odometry_edges_.push_back(std::make_pair(key_ - 1, key_));
+    //odometry_edges_.push_back(std::make_pair(key_ - 1, key_));
     return BetweenFactor<Pose3>(key_ - 1, key_, delta, covariance);
 }
 
-void LaserLoopClosure::Serialize2File(string posePath, string normal_HistogramPath, string height_HistogramPath, float x_offset, float y_offset)
-{
-    std::ofstream pose_file; //输出位姿到文件
-    pose_file.open(posePath.c_str(), std::ofstream::out | std::ofstream::app);
-    if (!pose_file)
-    {
-        std::cout << "file not open(pose)!!";
-    }
-
-    std::ofstream height_histo_file; //输出直方图表示到文件
-    height_histo_file.open(height_HistogramPath.c_str(), std::ofstream::out | std::ofstream::app);
-    if (!height_histo_file)
-    {
-        std::cout << "file not open(histogram)!!";
-    }
-    std::ofstream normal_histo_file; //输出直方图表示到文件
-    normal_histo_file.open(normal_HistogramPath.c_str(), std::ofstream::out | std::ofstream::app);
-    if (!normal_histo_file)
-    {
-        std::cout << "file not open(normal_histogram)!!";
-    }
-
-    std::map<unsigned int, vector<float>>::iterator it = keyed_histogram_.begin();
-    std::map<unsigned int, vector<float>>::iterator it2 = keyed_histogram_normal_.begin();
-    for (; it != keyed_histogram_.end() && it2 != keyed_histogram_normal_.end(); ++it, ++it2)
-    {
-        unsigned int cur_key = it->first;
-        for (int i = 0; i < it->second.size(); i++)
-        {
-            height_histo_file << it->second[i] << " ";
-        }
-        height_histo_file << std::endl;
-
-        for (int i = 0; i < it2->second.size(); i++)
-        {
-            normal_histo_file << it2->second[i] << " ";
-        }
-        normal_histo_file << std::endl;
-
-        Pose3 p = values_.at<Pose3>(cur_key);
-        float x = p.translation().x() - x_offset;
-        float y = p.translation().y() - y_offset;
-        float yaw = p.rotation().yaw();
-        pose_file << x << " " << y << " " << yaw << std::endl;
-    }
-}
-
-bool LaserLoopClosure::addPoseAndKeyScan(const geometry_utils::Transform3 &delta, const PointCloud::ConstPtr &scan)
+bool LidarLoopClosure::addPoseAndKeyScan(const geometry_utils::Transform3 &delta, const PointCloud::ConstPtr &scan)
 {
     unsigned int pose_key;
     gu::MatrixNxNBase<double, 6> covariance;
@@ -535,7 +645,6 @@ bool LaserLoopClosure::addPoseAndKeyScan(const geometry_utils::Transform3 &delta
 
     isamMutexM.lock();
 
-    // PublishPoseGraph();
     //当位姿平移大于阈值则记录一次关键帧，返回true，否则返回false//
     const ros::Time stamp = pcl_conversions::fromPCL(scan->header.stamp);
 
@@ -553,7 +662,7 @@ bool LaserLoopClosure::addPoseAndKeyScan(const geometry_utils::Transform3 &delta
     return true;
 }
 
-unsigned int LaserLoopClosure::getLastScanKey()
+unsigned int LidarLoopClosure::getLastScanKey()
 {
     std::lock_guard<std::mutex> lock(keyScanMutexM);
     if (!keyed_scans_.empty())
@@ -563,7 +672,7 @@ unsigned int LaserLoopClosure::getLastScanKey()
     return 0;
 }
 
-bool LaserLoopClosure::isKeyFrame(unsigned int iKey)
+bool LidarLoopClosure::isKeyFrame(unsigned int iKey)
 {
     std::lock_guard<std::mutex> lock(keyScanMutexM);
     if (!keyed_scans_.count(iKey))
@@ -573,32 +682,29 @@ bool LaserLoopClosure::isKeyFrame(unsigned int iKey)
     return true;
 }
 
-void LaserLoopClosure::getKeyedScan(unsigned int iKey, PointCloud::Ptr scan)
+void LidarLoopClosure::getKeyedScan(unsigned int iKey, PointCloud::Ptr scan)
 {
     std::lock_guard<std::mutex> lock(keyScanMutexM);
     const PointCloud::ConstPtr tmpScan = keyed_scans_[iKey];
     pcl::copyPointCloud(*tmpScan, *scan);
 }
 
-const geometry_utils::Transform3 LaserLoopClosure::getDiffPose(unsigned int iKey1, unsigned int iKey2)
+const geometry_utils::Transform3 LidarLoopClosure::getDiffPose(unsigned int iKey1, unsigned int iKey2)
 {
     isamMutexM.lock();
     const gu::Transform3 pose1 = ToGu(values_.at<Pose3>(iKey1));
     const gu::Transform3 pose2 = ToGu(values_.at<Pose3>(iKey2));
     isamMutexM.unlock();
-    // printf("pose1: x=%f ,y=%f ,z=%f .\n", pose1.translation.X(), pose1.translation.Y(), pose1.translation.Z());
-    // printf("pose2: x=%f ,y=%f ,z=%f .\n", pose2.translation.X(), pose2.translation.Y(), pose2.translation.Z());
 
     const gu::Transform3 diffPose = gu::PoseDelta(pose1, pose2);
-    // printf("d: dx=%f ,dy=%f ,dz=%f .\n", diffPose.translation.X(), diffPose.translation.Y(), diffPose.translation.Z());
 
     return diffPose;
 }
 
-void LaserLoopClosure::updatePoseFactor()
+void LidarLoopClosure::updatePoseFactor()
 {
     // 查看论文，寻找ICP求协方差矩阵的算法
-    LaserLoopClosure::Mat66 covariance;
+    Mat66 covariance;
     covariance.Zeros();
     for (int i = 0; i < 2; ++i)
         covariance(i, i) = 0.01;
@@ -618,32 +724,15 @@ void LaserLoopClosure::updatePoseFactor()
     isamMutexM.unlock();
     
     // loop_edges_.push_back(std::make_pair(iCurHdlKeyM, iLoopKeyM));
-    // // 标示我们发现了一个闭环
-    // loop_closure_notifier_pub_.publish(std_msgs::Empty());
     dzlog_info("@@@@@@ updatePoseFactor() update loop pose between key %u and %u", iCurHdlKeyM, iLoopKeyM);
 }
 
-void LaserLoopClosure::setIsLoopChecked(bool bStatus)
-{
-    bIsLoopCheckedM = bStatus;
-}
-
-bool LaserLoopClosure::getIsLoopCheched()
-{
-    return bIsLoopCheckedM;
-}
-
-void LaserLoopClosure::setIsGetSaveMapFlag(bool bStatus)
-{
-    bIsGetSaveMapM = bStatus;
-}
-
-bool LaserLoopClosure::getIsLoopThreadExit()
+bool LidarLoopClosure::getIsLoopThreadExit()
 {
     return bIsLoopThreadExitM;
 }
 
-void LaserLoopClosure::saveGtsam2G2oFile(string outputFile)
+void LidarLoopClosure::saveGtsam2G2oFile(string outputFile)
 {
     isamMutexM.lock();
     gtsam::Values value = isam_->calculateEstimate();
@@ -652,57 +741,28 @@ void LaserLoopClosure::saveGtsam2G2oFile(string outputFile)
     isamMutexM.unlock();
 }
 
-bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr &scan1,
+bool LidarLoopClosure::PerformICP(const PointCloud::ConstPtr &scan1,
                                   const PointCloud::ConstPtr &scan2,
                                   const gu::Transform3 &pose1,
                                   const gu::Transform3 &pose2,
                                   gu::Transform3 *delta,
-                                  LaserLoopClosure::Mat66 *covariance,
+                                  Mat66 *covariance,
                                   double *fitnessReturn)
 {
-    // dzlog_info(" start GICP . ");
     if (delta == NULL || covariance == NULL)
     {
-        dzlog_info("%s: Output pointers are null.", name_.c_str());
+        dzlog_info("@@@@@@ PerformICP() Output pointers are null.");
         return false;
     }
-
-    // ROS_ERROR("ssssssssssssssssssssss");
 
     // ICP：此处考虑了闭合时，机器人可能不是一个朝向，此时直接ICP可能匹配不上，这时候
     //利用pose1/2时的朝向的估计信息。转换后再匹配。
     pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+    // icp.setTransformationEpsilon(icp_tf_epsilon_);
+    // icp.setMaxCorrespondenceDistance(icp_corr_dist_);
+    // icp.setMaximumIterations(icp_iterations_);
 
-    // icp_tf_epsilon_ = 0.0000000001;
-    //  icp_corr_dist_ = 0.25;
-    //  icp_iterations_ = 30;
-
-    // icp_tf_epsilon_ = 0.000000001;
-    // icp_corr_dist_ = 5;
-    // icp_iterations_ = 100;
-
-    // double OutlierRejectionThreshold_ = 1.5 ;
-    // double EuclideanFitnessEpsilon_ = 0.05; 
-
-    icp.setTransformationEpsilon(icp_tf_epsilon_);
-    icp.setMaxCorrespondenceDistance(icp_corr_dist_);
-    icp.setMaximumIterations(icp_iterations_);
-    icp.setRANSACIterations(50);
-
-    // icp.setEuclideanFitnessEpsilon( EuclideanFitnessEpsilon_ );
-    // icp.setRANSACOutlierRejectionThreshold(OutlierRejectionThreshold_);
-    
-    dzlog_info("GICP param: gicp.getTransformationEpsilon(): %f , gicp.getMaxCorrespondenceDistance(): %f , gicp.getMaximumIterations(): %d, icp.getEuclideanFitnessEpsilon(): %f , icp.getRANSACOutlierRejectionThreshold(): %f . ", 
-               icp.getTransformationEpsilon(), icp.getMaxCorrespondenceDistance() , icp.getMaximumIterations() ,
-               icp.getEuclideanFitnessEpsilon() , icp.getRANSACOutlierRejectionThreshold() );
-
-    // PointCloud LaserLoopClosure::filter_pointcloud(const PointCloud::ConstPtr pc)
-    // PointCloud scan1_filter = *scan1;
-    // PointCloud scan2_filter = *scan2;
-    // filter_pointcloud(scan1_filter);
-    // filter_pointcloud(scan2_filter);
-    // icp.setInputSource(scan1_filter.makeShared()); // source
-    // icp.setInputTarget(scan2_filter.makeShared());
+    // icp.setRANSACIterations(50);
 
     icp.setInputSource(scan1);  //source
     icp.setInputTarget(scan2);
@@ -712,7 +772,6 @@ bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr &scan1,
     icp.align(unused_result); //将2个关键帧配准
     unused_result.height = 1;
     unused_result.width = unused_result.size();
-    // ROS_ERROR("eeeeeeeeeeeeeeeeeeeeeeeeee");
 
     // Get resulting transform.
     const Eigen::Matrix4f T = icp.getFinalTransformation();
@@ -734,7 +793,12 @@ bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr &scan1,
         dzlog_info("score %f ", icp.getFitnessScore());
         return false;
     }
-
+       dzlog_info("GICP param: icp.getTransformationEpsilon(): %f , icp.getMaxCorrespondenceDistance(): %f , icp.getMaximumIterations(): %d " 
+            // , icp.getEuclideanFitnessEpsilon(): %f , icp.getRANSACOutlierRejectionThreshold(): %f . ", 
+               , icp.getTransformationEpsilon(), icp.getMaxCorrespondenceDistance() , icp.getMaximumIterations()
+            // , icp.getEuclideanFitnessEpsilon() , icp.getRANSACOutlierRejectionThreshold()
+               );
+     /**/
     // 求出的 变换矩阵 做不做平面约束
     // delta_icp.translation =  gu::Vec3(delta_icp.translation.X(), delta_icp.translation.Y(), 0);
     // delta_icp.rotation = gu::Rot3(0,0,delta_icp.rotation.Yaw());
@@ -745,56 +809,42 @@ bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr &scan1,
     covariance->Zeros();
     for (int i = 0; i < 2; ++i)
         (*covariance)(i, i) = 0.01;
-        // (*covariance)(i, i) = *fitnessReturn / 10;
 
-        
     for (int i = 2; i < 5; ++i)
         (*covariance)(i, i) = 0.001;
-        // (*covariance)(i, i) = *fitnessReturn / 100;
 
     for (int i = 5; i < 6; ++i)
         (*covariance)(i, i) = 0.04;
-        // (*covariance)(i, i) = *fitnessReturn * 4 / 10;
-
 
     // icp的结果
     static int cnts = 1;
-    printf("%dth score %f \n", cnts, icp.getFitnessScore());
 
     cout << "icp rotation (deg) :" << endl
          << delta->rotation.GetEulerZYX() * 180 / M_PI << endl;
 
     std::string name;
-    name = work_dir_ + "icp/_" + std::to_string(cnts) + "_scan2.pcd";
-    // cout << "754 path is :" << name << endl;
+    name = strWorkDirM + "icp/_" + std::to_string(cnts) + "_scan2.pcd";
     pcl::io::savePCDFile(name, *scan2);
-    // pcl::io::savePCDFile(name, scan2_filter);
 
-    name = work_dir_ + "icp/_" + std::to_string(cnts) + "_scan1.pcd";
-    // cout << "759 path is :" << name << endl;
+    name = strWorkDirM + "icp/_" + std::to_string(cnts) + "_scan1.pcd";
     pcl::io::savePCDFile(name, *scan1);
-    // pcl::io::savePCDFile(name, scan1_filter);
 
-    name = work_dir_ + "icp/_" + std::to_string(cnts) + "_unused_result.pcd";
-    cout << "764 path is :" << name << endl;
+    name = strWorkDirM + "icp/_" + std::to_string(cnts) + "_unused_result.pcd";
     pcl::io::savePCDFile(name, unused_result);
 
     dzlog_info("%dth score %f , file is %s ", cnts, icp.getFitnessScore(), name.c_str());
     cnts++;
-    // dzlog_info(" end GICP . ");
 
     return true;
 }
 
-bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &target_time)
+bool LidarLoopClosure::FindLoopClosures(unsigned int key_temp, const double &target_time)
 {
-    dzlog_info("try to FindLoopClosures. ");
+    // dzlog_info("try to FindLoopClosures. ");
     int key = key_temp;
 
     // If loop closure checking is off, don't do this step. This will save some
     // computation time.
-    // if (!check_for_loop_closures_)
-    //     return false;
 
     // If a loop has already been closed recently, don't try to close a new one.
     if (std::fabs(key - last_closure_key_) < skip_recent_poses_)
@@ -808,9 +858,8 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
     bool closed_loop = false;
     double fitnessMin = max_tolerable_fitness_;
     gu::Transform3 delta;
-    LaserLoopClosure::Mat66 covariance;
+    Mat66 covariance;
     int keyResut = 0;
-
     int other_key;
 
     for (const auto &keyed_pose : values_)
@@ -836,14 +885,14 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
         // const PointCloud::ConstPtr scan2 = keyed_scans_[other_key];
         PointCloud::Ptr scan2(new PointCloud);
         try
-		{
+        {
             getKeyedScan(other_key, scan2);
-		}
-		catch (const std::exception &e)
-		{
-		    std::cerr << "get points fails: " << other_key << " error code:" << e.what() << '\n';
-			continue;
-		}
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "get points fails: " << other_key << " error code:" << e.what() << '\n';
+            continue;
+        }
 
         // 时间戳是不是在视觉回环的附近
         // 2 就可以，在远的匹配得分就很高了
@@ -852,23 +901,23 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
             continue;
         }
 
-        dzlog_info("try DO GICP , with other_key is %u <size: %ld >, key is %u <size: %ld > ", other_key,scan2->size(), key,  scan1->size() );
+        // dzlog_info("try DO GICP , with other_key is %u <size: %ld >, key is %u <size: %ld > ", other_key,scan2->size(), key,  scan1->size() );
         // 从头到尾 依次检测，有可能出现：
         // 中间的回环将尾的位置 纠正到 离头的 位置很远，这样 位置差就不满足以下的关系了。
         // 由于已经从视觉回环上确定了大概的时间，此时对应的位置也基本确定，将其注释掉，问题不大。
         // 在测试 20221011
-        // if (  (difference.translation.Norm() < proximity_threshold_) )
-            //  && (fabs(difference.rotation.Yaw()) < maxLoopKeysYawM)
+        // if (  difference.translation.Norm() < proximity_threshold_ 
+        //      &&  fabs(difference.rotation.Yaw()) < maxLoopKeysYawM  )
         // if( fabs(difference.rotation.Yaw()) < maxLoopKeysYawM )
-        if(1)
+        // if(1)
         {
             gu::Transform3 deltaTemp;
-            LaserLoopClosure::Mat66 covarianceTemp;
+            Mat66 covarianceTemp;
             double fitnessReturn;
         
             if (PerformICP(scan1, scan2, pose1, pose2, &deltaTemp, &covarianceTemp, &fitnessReturn))
             {
-                dzlog_info("do icp ok . fitnessReturn is %f .", fitnessReturn);
+                // dzlog_info("do icp ok . fitnessReturn is %f .", fitnessReturn);
                 static int icp_ok_cnts = 1;
                 // 找到一个闭环位姿
                 if (fitnessReturn < fitnessMin)
@@ -887,11 +936,9 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
     if (closed_loop)
     {
         closed_loop = false;
-        std::cout << __FILE__ << ":" << __LINE__ << "  choose one min score ...... " << std::endl;
-
-        dzlog_info(" delta is: translation: %f, %f, %f .", delta.translation(0), delta.translation(1), delta.translation(2));
+        // dzlog_info(" delta is: translation: %f, %f, %f .", delta.translation(0), delta.translation(1), delta.translation(2));
         auto rota_temp = delta.rotation.GetEulerZYX() * 180 / M_PI;
-        dzlog_info(" delta is: rotation: %f, %f, %f (deg).", rota_temp(0), rota_temp(1), rota_temp(2));
+        // dzlog_info(" delta is: rotation: %f, %f, %f (deg).", rota_temp(0), rota_temp(1), rota_temp(2));
 
         std::lock_guard<std::mutex> lock(isamMutexM);
         // g_Mutex.lock();
@@ -903,29 +950,27 @@ bool LaserLoopClosure::FindLoopClosures(unsigned int key_temp, const double &tar
         // g_Mutex.unlock();
         
         loop_cnts_++;
-        // saveGtsam2G2oFile(work_dir_ + std::to_string(loop_cnts_) +"_loop_gtsam_optimized.g2o");
-
         last_closure_key_ = key;
-        dzlog_info("\n\n @@@@@@ %uth isHasLoopClosure() find a loop closure between key %u and %u fitnessMin=%f, DIFF key = %u . last_closure_key_ = %u \n ", loop_cnts_, key, keyResut, fitnessMin, key - keyResut, last_closure_key_);
-        printf(" %uth loop closure between key %u and %u , fitnessMin %f , DIFF key = %u .  \n\n ", loop_cnts_, key, keyResut, fitnessMin, key - keyResut);
-        std::cout << delta << std::endl;
+        dzlog_info("@@@@@@ %uth isHasLoopClosure() find a loop between key %u and %u,fitnessMin=%f, DIFF key = %u,last_closure_key_ = %u",
+                   loop_cnts_, key, keyResut, fitnessMin, key - keyResut, last_closure_key_);
 
-        // 找到回环
-        find_loop_ = true;
-        sleep(1) ;  // sleep 1 s 。让外部获取这个状态，维持 1s
-        find_loop_ = false;
+        NonlinearFactorGraph factorGraph = isam_->getFactorsUnsafe();
+        gtsam::writeG2o(factorGraph, values_, "/home/map/_" + std::to_string(loop_cnts_) + "_.g2o");
+        //找到回环
+        pubLoopFindM.publish(std_msgs::Empty());
     }
     return true;
 }
 
-bool LaserLoopClosure::AddBetweenFactor(const gu::Transform3 &delta,
-                                        const LaserLoopClosure::Mat66 &covariance,
-                                        const ros::Time &stamp, unsigned int *key)
+bool LidarLoopClosure::AddBetweenFactor(const gu::Transform3 &delta,
+                                        const Mat66 &covariance,
+                                        const ros::Time &stamp,
+                                        unsigned int *key)
 {
     std::lock_guard<std::mutex> lock(keyScanMutexM);
     if (key == NULL)
     {
-        dzlog_info("%s: Output key is null.", name_.c_str());
+        dzlog_info("@@@@@@ PerformICP() Output key is null.");
         return false;
     }
 
@@ -942,8 +987,6 @@ bool LaserLoopClosure::AddBetweenFactor(const gu::Transform3 &delta,
         return false;
     }
 
-    // g_Mutex.lock();
-    
     NonlinearFactorGraph new_factor;
     Values new_value;
     new_factor.add(MakeBetweenFactor(odometry_ /*new_odometry*/, ToGtsam(covariance)));
@@ -957,8 +1000,8 @@ bool LaserLoopClosure::AddBetweenFactor(const gu::Transform3 &delta,
     // Update ISAM2.
     isam_->update(new_factor, new_value);
     values_ = isam_->calculateEstimate();
-
-    // g_Mutex.unlock();
+    
+    gtsam::writeG2o(new_factor, values_, "/home/map/_" + std::to_string(loop_cnts_) + "_.g2o");
 
     // Assign output and get ready to go again!
     *key = key_++;
@@ -967,12 +1010,12 @@ bool LaserLoopClosure::AddBetweenFactor(const gu::Transform3 &delta,
     return true;
 }
 
-bool LaserLoopClosure::AddKeyScanPair(unsigned int key, const PointCloud::ConstPtr &scan)
+bool LidarLoopClosure::AddKeyScanPair(unsigned int key, const PointCloud::ConstPtr &scan)
 {
     std::lock_guard<std::mutex> lock(keyScanMutexM);
     if (keyed_scans_.count(key))
     {
-        dzlog_info("%s: Key %u already has a laser scan.", name_.c_str(), key);
+        dzlog_info("@@@@@@ AddKeyScanPair() Key %u already has a laser scan.", key);
         //TODO 把不是关键帧的点云也加进去，依次增加点云密度 20221008
         return false;
     }
@@ -991,45 +1034,46 @@ bool LaserLoopClosure::AddKeyScanPair(unsigned int key, const PointCloud::ConstP
     return true;
 }
 
-void LaserLoopClosure::loopClosureThread()
+void LidarLoopClosure::loopClosureThread()
 {
     dzlog_info("@@@@@@ loopClosureThread() loop thread IN !!!");
+    if (!bIsCheckLoopClosureM)
+    {
+        dzlog_info("@@@@@@ loopClosureThread() Do Not Need loop thread !!!");
+        return;
+    }
 
-    // 循环判断 视觉 有无回环进来
-    while ( 1 )
+    // 循环判断视觉有无回环进来
+    while (1)
     {
         // TODO 如何退出这个循环
         // 如何判断 建图程序已经结束，视觉不再有回环了
 
         // 有视觉的回环还有就进行 GICP 
-        if ( loop_time_queue.empty() )
+        if (loop_time_queue.empty())
         {
             dzlog_info("Do not get vision loopclosure .loopClosureThread sleep 20s . key frame %d ......", getLastScanKey() );
             // printf("Do not vision loopclosure .loopClosureThread sleep 20s . key frame %d ......\n", getLastScanKey()  );             
             usleep(20000 * 1000);
-            if ( bIsLoopThreadExitM )
+            if (bIsLoopThreadExitM)
             {
                 break;
             }
             continue;
         }
-        // ROS_WARN("start loop gtsam .");
 
         // 把最前面的回环时间拿出来
         double loop_time_first = loop_time_queue.front().first;
         double loop_time_second = loop_time_queue.front().second;
-        // dzlog_info("get a vision loopclosure .time is %f and %f .", loop_time_first, loop_time_second);
         // 加锁 ，防止和前面push的动作冲突
         g_Mutex.lock();
         loop_time_queue.pop();
         g_Mutex.unlock();
-        ROS_INFO("now loop_time_queue size is %ld .", loop_time_queue.size());
-        dzlog_info("now loop_time_queue size is %ld .", loop_time_queue.size() );
+        dzlog_info("now loop_time_queue size is %ld . total key frame %d .", loop_time_queue.size() ,  getLastScanKey() );
+        // dzlog_info("1. %f. 2. %f", loop_time_first, loop_time_second );
 
         // 每次进来，还从 第一个 开始
         unsigned int iKey = 0;
-        // unsigned int iKey = 1;
-        
         iKey = last_closure_key_;
 
         while (1)
@@ -1046,30 +1090,26 @@ void LaserLoopClosure::loopClosureThread()
 
             PointCloud::Ptr scan(new PointCloud);
             try
-		    {
+            {
                 getKeyedScan(iKey, scan);
-		    }
-		    catch (const std::exception &e)
-		    {
-    		    std::cerr << "get points fails: " << iKey << " error code:" << e.what() << '\n';
-		    	break;
-		    }
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << "get points fails: " << iKey << " error code:" << e.what() << '\n';
+                break;
+            }
 
             // 三种情况，1、比 loop_time_first 早的点云
             // 三种情况，2、在 loop_time_first 附近的点云 取这个情况
             // 三种情况，3、比 loop_time_first 晚的点云
             // 认为视觉回环的 detect_time_regional_ s内的点云 ， 也应该可以检测到回环,这样来缩小的搜索的范围
             // ROS_WARN("1. time diff %f. detect_time_regional_ %f", std::fabs( scan->header.stamp - loop_time_first ), detect_time_regional_);
+            // ROS_WARN("1. %lf. 2. %lf ", scan->header.stamp, loop_time_first );
             if ( std::fabs( scan->header.stamp - loop_time_first ) <= detect_time_regional_)
             {
-                // dzlog_info("@@@@@@ loopClosureThread() iCurHdlKeyM = %u,  total_key_ = %u .", iKey, key_);
-                // dzlog_info(" this key:%u time< %f > near have loop ......", iKey, loop_time_second);
                 FindLoopClosures(iKey, loop_time_second);
             }
         }
     }
-    dzlog_info("-------------------------------------------------------------------------  ");
-    dzlog_info("----------------save result finish ...... -------------");
-    dzlog_info("-------------------------------------------------------------------------  ");
     dzlog_info("@@@@@@ loopClosureThread() loop thread EXIT !!!");
 }

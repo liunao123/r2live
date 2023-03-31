@@ -21,6 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_geometry_msgs
   eigen_conversions
   pcl_ros
+  base_controller
 )
 
 find_package(Eigen3 REQUIRED)
@@ -67,11 +68,6 @@ include_directories(
 )
 
 SET(src_file loop_closure_gtsam)
-add_executable (${src_file} src/${src_file}.cpp src/LaserLoopClosure_time.cc)
-add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${GTSAM_LIBRARY_DIRS} libzlog.a)
-
-SET(src_file loop_closure_gtsam_tf2)
 add_executable (${src_file} src/${src_file}.cpp src/LaserLoopClosure_time.cc)
 add_dependencies(${src_file} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries (${src_file} gtsam ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${GTSAM_LIBRARY_DIRS} libzlog.a)

@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<launch>
+	
+	
+	
+	
+	
+	<!--<include file="$(find robot_launch)/launch/robot_localization.launch"/>-->
+	
+        <node name="base_write" pkg="base_controller" type="base_write" required="true" output="screen"/> 
+        <node name="base_nav" pkg="base_controller" type="base_nav" required="true" output="screen"/> 
+       
+	
+
+</launch>	
+<!--<arg name="gmapping_or_amcl" default="true"/>
+	<group if="$(arg gmapping_or_amcl)">
+		<include file="$(find robot_launch)/launch/slam_gmapping.launch"/>	
+	</group>
+	<group unless="$(arg gmapping_or_amcl)">
+		<include file="$(find robot_launch)/launch/amcl.launch"/>
+	</group>-->

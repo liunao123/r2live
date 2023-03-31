@@ -1,0 +1,19 @@
+#goal definition
+time stamp
+int32 id
+int32 nav_cmd #0 start 1 pause 2 continue 3 cancel
+geometry_msgs/Pose begin #起始点坐标
+geometry_msgs/Point control1 #贝塞尔曲线控制点1
+geometry_msgs/Point control2 #贝塞尔曲线控制点2
+geometry_msgs/Pose goal #目标点坐标
+uint8 route_type # 0表示使用直线 1表示使用贝塞尔曲线
+uint8 point_type # 0表示普通点 1表示充电点
+--- 
+#result definition
+bool success
+--- 
+#feedback definition
+int32 id
+geometry_msgs/PoseStamped position  #导航程序里的robot_pose
+int32 percent_complete
+int32 status

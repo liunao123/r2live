@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<launch>
+	
+	
+	
+	
+	
+	<include file="$(find velodyne_pointcloud)/launch/VLP16_points.launch"/>
+        <include file="$(find r2d2)/src/display.launch"/>
+       
+	
+
+</launch>	
+<!--<arg name="gmapping_or_amcl" default="true"/>
+	<group if="$(arg gmapping_or_amcl)">
+		<include file="$(find robot_launch)/launch/slam_gmapping.launch"/>	
+	</group>
+	<group unless="$(arg gmapping_or_amcl)">
+		<include file="$(find robot_launch)/launch/amcl.launch"/>
+	</group>-->

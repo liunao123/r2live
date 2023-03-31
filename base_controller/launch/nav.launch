@@ -1,0 +1,39 @@
+<launch>
+<!-- output="screen"   -->
+
+<!-- 激光+里程计-->
+	<node name="base_write" pkg="base_controller" type="base_write" required="true" output="screen"/> 
+        <node name="base_nav" pkg="base_controller" type="base_nav" required="true" output="screen"/> 
+	<include file="$(find velodyne_pointcloud)/launch/VLP16_points.launch"/>
+
+	<node pkg="tf" type="static_transform_publisher" name="link1_broadcaster" args="0.08 0.0 0.0 0 0 0 1 base_footprint velodyne 100"/>
+
+<!-- 加载栅格地图，用于导航 -->
+	<node name="map_server" pkg="map_server" type="map_server" args="$(find keda_navigation)/maps/map.yaml" output="screen"/>
+
+<!-- 定位节点，发布/tf  map->odom  <include file="$(find keda_localization)/launch/localize_for_nav.launch" > </include> -->
+	
+<node pkg="keda_localization" name="kd_pf_main_node" type="kd_pf_main_node"  output="screen">
+      <!-- Initial pose -->
+
+      <rosparam param="init">
+        position: {x: 0.0, y: 0.0, z: 0.0}
+        orientation: {roll: 0.0, pitch: 0.0, yaw: 0.0}
+      </rosparam>
+
+      <rosparam file="$(find keda_localization)/config/param_outdoor.yaml"/>
+</node>
+
+<!-- PointCloud2转换成LaserScan用于导航避障  /rslidar_points -> /laser_scan -->
+	<include file="$(find pointcloud_to_laserscan)/launch/sample_node.launch"> </include>
+
+<!-- 导航-->
+	<node pkg="keda_navigation" name="kd_navigation_node" type="kd_navigation_node"  output="screen">
+		<rosparam file="$(find keda_navigation)/config/param.yaml"/>
+	</node>
+
+<!-- rviz显示 -->
+	<arg name="rviz_config_file" value="$(find keda_navigation)/rviz/rviz.rviz"/>
+	<node name="rviz" pkg="rviz" type="rviz" args="-d $(arg rviz_config_file)"/>
+
+</launch>

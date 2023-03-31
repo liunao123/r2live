@@ -1,0 +1,6 @@
+<launch>
+
+	<arg name="rviz_config_file" value="$(find keda_navigation)/rviz/rviz.rviz"/>
+	<node name="rviz" pkg="rviz" type="rviz" args="-d $(arg rviz_config_file)"/>
+
+</launch>
