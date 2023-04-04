@@ -445,7 +445,7 @@ void pubTF(const Estimator &estimator, const std_msgs::Header &header)
     static tf::TransformBroadcaster br;
     tf::Transform transform;
     tf::Quaternion q;
-    // body frame
+    // body frame // imu frame
     Vector3d correct_t;
     Quaterniond correct_q;
     correct_t = estimator.Ps[WINDOW_SIZE];
@@ -459,7 +459,7 @@ void pubTF(const Estimator &estimator, const std_msgs::Header &header)
     q.setY(correct_q.y());
     q.setZ(correct_q.z());
     transform.setRotation(q);
-    br.sendTransform(tf::StampedTransform(transform, header.stamp, "world", "body"));
+    br.sendTransform(tf::StampedTransform(transform, header.stamp, "world", "imu"));
 
     // camera frame
     transform.setOrigin(tf::Vector3(estimator.tic[0].x(),
@@ -470,7 +470,7 @@ void pubTF(const Estimator &estimator, const std_msgs::Header &header)
     q.setY(Quaterniond(estimator.ric[0]).y());
     q.setZ(Quaterniond(estimator.ric[0]).z());
     transform.setRotation(q);
-    br.sendTransform(tf::StampedTransform(transform, header.stamp, "body", "camera"));
+    br.sendTransform(tf::StampedTransform(transform, header.stamp, "imu", "camera"));
 
     nav_msgs::Odometry odometry;
     odometry.header = header;

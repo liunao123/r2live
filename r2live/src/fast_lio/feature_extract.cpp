@@ -1,8 +1,11 @@
+#define PCL_NO_PRECOMPILE
 #include <ros/ros.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <livox_ros_driver/CustomMsg.h>
-
+#include <pcl/filters/extract_indices.h>
+#include <pcl/point_cloud.h>
+#include <pcl/pcl_macros.h>
 // Feature will be updated in next version
 
 using namespace std;
@@ -18,6 +21,20 @@ enum LID_TYPE{MID, HORIZON, VELO16, OUST64};
 enum Feature{Nor, Poss_Plane, Real_Plane, Edge_Jump, Edge_Plane, Wire, ZeroPoint};
 enum Surround{Prev, Next};
 enum E_jump{Nr_nor, Nr_zero, Nr_180, Nr_inf, Nr_blind};
+
+struct RsPointXYZIRT
+{
+  PCL_ADD_POINT4D;
+  float intensity;
+  // PCL_ADD_INTENSITY;
+  uint16_t ring = 0;
+  double timestamp = 0;
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+} EIGEN_ALIGN16;
+
+POINT_CLOUD_REGISTER_POINT_STRUCT(RsPointXYZIRT,
+                                  (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)(uint16_t, ring, ring)(double, timestamp, timestamp))
+
 
 struct orgtype
 {
@@ -106,7 +123,7 @@ int main(int argc, char **argv)
     break;
 
   case HORIZON:
-    printf("HORIZON\n");
+    ROS_ERROR("lidar is HORIZON\n");
     sub_points = n.subscribe("/livox/lidar", 1000, horizon_handler,ros::TransportHints().tcpNoDelay());
     break;
 
@@ -239,31 +256,44 @@ int orders[16] = {0, 2, 4, 6, 8, 10, 12, 14, 1, 3, 5, 7, 9, 11, 13, 15};
 
 void velo16_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
 {
-  // for (size_t i = 0; i < 3; i++)
-  // {
-  //   printf("--------- %s \n", msg->fields[i].name.c_str());
-  // }
+  ROS_WARN("--------- %s \n",pcl::getFieldsList(*msg).c_str());
+  pcl::PointCloud<RsPointXYZIRT> pl_orig ;
 
-   printf("--------- %s \n",pcl::getFieldsList(*msg).c_str());
-  // return;
-  
-  pcl::PointCloud<PointType> pl_orig;
   pcl::fromROSMsg(*msg, pl_orig);
-  uint plsize = pl_orig.size();
+    // ROS_ERROR("pl_orig->size()is %d",  pl_orig.size());
 
+  // 根据索引把 nan 去掉
+  pcl::PointCloud<pcl::PointXYZ> pl_orig_xyz;
+  pcl::fromROSMsg(*msg, pl_orig_xyz);
+
+  std::vector<int> save_index;
+  pcl::removeNaNFromPointCloud(pl_orig_xyz, pl_orig_xyz, save_index);
+  boost::shared_ptr<std::vector<int>> index_ptr = boost::make_shared<std::vector<int>>(save_index);
+  
+  pcl::ExtractIndices<RsPointXYZIRT> extract;
+  extract.setInputCloud( pl_orig.makeShared() );
+  extract.setIndices(index_ptr);
+  extract.setNegative(false); // 保留 不是 索引的 数据 设置为  true
+  extract.filter(pl_orig);
+  
   vector<pcl::PointCloud<PointType>> pl_buff(N_SCANS);
   vector<vector<orgtype>> typess(N_SCANS);
   pcl::PointCloud<PointType> pl_corn, pl_surf, pl_full;
-  
+
+  uint plsize = pl_orig.size();  
   for(uint i=0; i<plsize; i++)
   {
-    PointType &ap = pl_orig[i];
-    ap.normal_x = 0;
-    ap.normal_y = 0;
-    ap.normal_z = 0;
+    PointType ap;
+    ap.normal_x = 0;    ap.normal_y = 0;    ap.normal_z = 0;
     ap.intensity = pl_orig.points[i].intensity;
-    // ap.curvature = pl_orig.points[i].time / 1000.0; // units: ms
-    // printf(" 264 pl_orig.points[i].intensity %lf \n", pl_orig.points[i].intensity);
+
+    ap.x = pl_orig[i].x;
+    ap.y = pl_orig[i].y;
+    ap.z = pl_orig[i].z;
+
+    // time off 
+    // * 1000 是 后面 / 1000 了。。 为了与velodyne的代码兼容
+    ap.curvature = ( pl_orig.points[i].timestamp - msg->header.stamp.toSec() ) * 1000.0 ;
 
     double leng = sqrt(ap.x*ap.x + ap.y*ap.y);
     if(leng < blind)
@@ -276,10 +306,10 @@ void velo16_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
       continue;
     }
     pl_surf.points.push_back(ap);
+    
   }
-  pub_func(pl_surf, pub_surf, msg->header.stamp);
-
-  return ;
+  // pub_func(pl_surf, pub_surf, msg->header.stamp);
+  // return ;
 
 
   int scanID;
@@ -292,19 +322,24 @@ void velo16_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
     typess[i].resize(plsize);
   }
 
+  // 计算点 所在的 ring
   for(uint i=0; i<plsize; i++)
   {
-    PointType &ap = pl_orig[i];
-    double leng = sqrt(ap.x*ap.x + ap.y*ap.y);
-    if(leng < blind)
-    {
-      continue;
-    }
+    // PointType &ap = pl_orig[i];
 
-    if(leng > 200)
-    {
-      continue;
-    }
+    PointType ap;
+    ap.normal_x = 0;    ap.normal_y = 0;    ap.normal_z = 0;
+    ap.intensity = pl_orig.points[i].intensity;
+
+    ap.x = pl_orig[i].x;
+    ap.y = pl_orig[i].y;
+    ap.z = pl_orig[i].z;
+
+    // time off 
+    // * 1000 是 后面 / 1000 了。。 为了与velodyne的代码兼容
+    ap.curvature = ( pl_orig.points[i].timestamp - msg->header.stamp.toSec() ) * 1000.0 ;
+
+    double leng = sqrt(ap.x*ap.x + ap.y*ap.y);
 
     double ang = atan(ap.z / leng)*rad2deg;
     scanID = int((ang + 15) / 2 + 0.5);
@@ -365,7 +400,7 @@ void velo16_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
 
   // printf("%zu %zu\n", pl_surf.size(), pl_corn.size());
 
-  pub_func(pl_orig, pub_full, msg->header.stamp);
+  // pub_func(pl_orig, pub_full, msg->header.stamp);
   pub_func(pl_surf, pub_surf, msg->header.stamp);
   pub_func(pl_corn, pub_corn, msg->header.stamp);
 

@@ -125,7 +125,7 @@ void Save_pointcloud::save_map(const sensor_msgs::PointCloud2::ConstPtr &reg_pc)
   {
     /* code */
     map->points.clear();
-    cnts == 1;
+    cnts == 0;
     ROS_WARN("-------------- clear map: pointcloud is empty . -----------");
   }
 

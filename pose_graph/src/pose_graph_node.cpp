@@ -93,10 +93,7 @@ void new_sequence()
 
 void image_callback(const sensor_msgs::ImageConstPtr &image_msg)
 {
-    if (image_msg->width > 0 and image_msg->height > 0)
-    {
-    }
-    else
+    if ((image_msg->width <= 0) || (image_msg->height <= 0))
     {
         return;
     }
@@ -125,16 +122,6 @@ void point_callback(const sensor_msgs::PointCloudConstPtr &point_msg)
     m_buf.lock();
     point_buf.push(point_msg);
     m_buf.unlock();
-    /*
-    for (unsigned int i = 0; i < point_msg->points.size(); i++)
-    {
-        printf("%d, 3D point: %f, %f, %f 2D point %f, %f \n",i , point_msg->points[i].x, 
-                                                     point_msg->points[i].y,
-                                                     point_msg->points[i].z,
-                                                     point_msg->channels[i].values[0],
-                                                     point_msg->channels[i].values[1]);
-    }
-    */
 }
 
 void pose_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
@@ -145,15 +132,6 @@ void pose_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
     m_buf.lock();
     pose_buf.push(pose_msg);
     m_buf.unlock();
-    /*
-    printf("pose t: %f, %f, %f   q: %f, %f, %f %f \n", pose_msg->pose.pose.position.x,
-                                                       pose_msg->pose.pose.position.y,
-                                                       pose_msg->pose.pose.position.z,
-                                                       pose_msg->pose.pose.orientation.w,
-                                                       pose_msg->pose.pose.orientation.x,
-                                                       pose_msg->pose.pose.orientation.y,
-                                                       pose_msg->pose.pose.orientation.z);
-    */
 }
 
 void imu_forward_callback(const nav_msgs::Odometry::ConstPtr &forward_msg)
@@ -306,71 +284,19 @@ void process()
         sensor_msgs::ImageConstPtr image_msg = NULL;
         sensor_msgs::PointCloudConstPtr point_msg = NULL;
         nav_msgs::Odometry::ConstPtr pose_msg = NULL;
-       
-        // find out the messages with same time stamp
+
         m_buf.lock();
-        // if(!image_buf.empty() && !point_buf.empty() && !pose_buf.empty())
-        // {
-        //     if (image_buf.front()->header.stamp.toSec() > pose_buf.front()->header.stamp.toSec())
-        //     {
-        //         pose_buf.pop();
-        //         printf("throw pose at beginning\n");
-        //     }
-        //     else if (image_buf.front()->header.stamp.toSec() > point_buf.front()->header.stamp.toSec())
-        //     {
-        //         point_buf.pop();
-        //         printf("throw point at beginning\n");
-        //     }
-        //     else if (image_buf.back()->header.stamp.toSec() >= pose_buf.front()->header.stamp.toSec() 
-        //         && point_buf.back()->header.stamp.toSec() >= pose_buf.front()->header.stamp.toSec())
-        //     {
-        //         pose_msg = pose_buf.front();
-        //         pose_buf.pop();
-        //         while (!pose_buf.empty())
-        //             pose_buf.pop();
-        //         while (image_buf.front()->header.stamp.toSec() < pose_msg->header.stamp.toSec())
-        //             image_buf.pop();
-        //         image_msg = image_buf.front();
-        //         image_buf.pop();
 
-        //         while (point_buf.front()->header.stamp.toSec() < pose_msg->header.stamp.toSec())
-        //             point_buf.pop();
-        //         point_msg = point_buf.front();
-        //         point_buf.pop();
-        //     }
-        // }
-
-        if( !image_buf.empty() )
+        if (!image_buf.empty())
         {
             image_msg = image_buf.front();
             image_buf.pop();
-            // std::cout << __FILE__ << " : " << __LINE__ << std::endl;
         }
 
         m_buf.unlock();
 
         if (image_msg != NULL)
         {
-            //printf(" pose time %f \n", pose_msg->header.stamp.toSec());
-            //printf(" point time %f \n", point_msg->header.stamp.toSec());
-            //printf(" image time %f \n", image_msg->header.stamp.toSec());
-            // skip fisrt few
-            // if (skip_first_cnt < SKIP_FIRST_CNT)
-            // {
-            //     skip_first_cnt++;
-            //     continue;
-            // }
-
-            // if (skip_cnt < SKIP_CNT)
-            // {
-            //     skip_cnt++;
-            //     continue;
-            // }
-            // else
-            // {
-            //     skip_cnt = 0;
-            // }
-
             cv_bridge::CvImageConstPtr ptr;
             if (image_msg->encoding == "8UC1")
             {
@@ -388,58 +314,24 @@ void process()
                 ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::MONO8);
             
             cv::Mat image = ptr->image;
-            // build keyframe
-            // Vector3d T = Vector3d(pose_msg->pose.pose.position.x,
-            //                       pose_msg->pose.pose.position.y,
-            //                       pose_msg->pose.pose.position.z);
-            // Matrix3d R = Quaterniond(pose_msg->pose.pose.orientation.w,
-            //                          pose_msg->pose.pose.orientation.x,
-            //                          pose_msg->pose.pose.orientation.y,
-            //                          pose_msg->pose.pose.orientation.z).toRotationMatrix();
-            
             Vector3d T = Vector3d(0,0,0);
             Matrix3d R = Quaterniond(1,0,0,0).toRotationMatrix();
 
-            // if((T - last_t).norm() > SKIP_DIS)
-            // {
-                vector<cv::Point3f> point_3d; 
-                vector<cv::Point2f> point_2d_uv; 
-                vector<cv::Point2f> point_2d_normal;
-                vector<double> point_id;
+            vector<cv::Point3f> point_3d;
+            vector<cv::Point2f> point_2d_uv;
+            vector<cv::Point2f> point_2d_normal;
+            vector<double> point_id;
 
-                // for (unsigned int i = 0; i < point_msg->points.size(); i++)
-                // {
-                //     cv::Point3f p_3d;
-                //     p_3d.x = point_msg->points[i].x;
-                //     p_3d.y = point_msg->points[i].y;
-                //     p_3d.z = point_msg->points[i].z;
-                //     point_3d.push_back(p_3d);
-
-                //     cv::Point2f p_2d_uv, p_2d_normal;
-                //     double p_id;
-                //     p_2d_normal.x = point_msg->channels[i].values[0];
-                //     p_2d_normal.y = point_msg->channels[i].values[1];
-                //     p_2d_uv.x = point_msg->channels[i].values[2];
-                //     p_2d_uv.y = point_msg->channels[i].values[3];
-                //     p_id = point_msg->channels[i].values[4];
-                //     point_2d_normal.push_back(p_2d_normal);
-                //     point_2d_uv.push_back(p_2d_uv);
-                //     point_id.push_back(p_id);
-
-                //     //printf("u %f, v %f \n", p_2d_uv.x, p_2d_uv.y);
-                // }
-				
-                // 添加关键帧的 时间戳 
-                KeyFrame* keyframe = new KeyFrame(image_msg->header.stamp.toSec(), frame_index, T, R, image,
-                                   point_3d, point_2d_uv, point_2d_normal, point_id, sequence);   
-                m_process.lock();
-                start_flag = 1;
-                posegraph.addKeyFrame(keyframe, 1);
-                // printf("addKeyFrame");
-                m_process.unlock();
-                frame_index++;
-                last_t = T;
-            // }
+            // 添加关键帧的 时间戳
+            KeyFrame* keyframe = new KeyFrame(image_msg->header.stamp.toSec(), frame_index, T, R, image,
+                               point_3d, point_2d_uv, point_2d_normal, point_id, sequence);
+            m_process.lock();
+            start_flag = 1;
+            posegraph.addKeyFrame(keyframe, 1);
+            // printf("addKeyFrame");
+            m_process.unlock();
+            frame_index++;
+            last_t = T;
         }
 
         std::chrono::milliseconds dura(5);
@@ -453,7 +345,6 @@ void command()
         return;
     while(1)
     {
-
         char c = getchar();
         if (c == 's')
         {
@@ -461,8 +352,6 @@ void command()
             posegraph.savePoseGraph();
             m_process.unlock();
             printf("save pose graph finish\nyou can set 'load_previous_pose_graph' to 1 in the config file to reuse it next time\n");
-            // printf("program shutting down...\n");
-            // ros::shutdown();
         }
         if (c == 'n')
             new_sequence();
@@ -479,7 +368,7 @@ int main(int argc, char **argv)
     posegraph.registerPub(n);
 
     // read param
-    // 保存图像 进行回环的 频率
+    // 保存图像进行回环的频率
     n.getParam("img_rate", img_rate);
     cout << "img_rate : " << img_rate << endl;
 
@@ -554,16 +443,9 @@ int main(int argc, char **argv)
     fsSettings.release();
 
     ros::Subscriber sub_image = n.subscribe(IMAGE_TOPIC, 2000, image_callback);
-
-
     std::thread measurement_process;
-   // std::thread keyboard_command_process;
-
     measurement_process = std::thread(process);
-   // keyboard_command_process = std::thread(command);
-
 
     ros::spin();
-
     return 0;
 }

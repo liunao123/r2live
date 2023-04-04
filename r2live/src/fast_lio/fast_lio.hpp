@@ -95,7 +95,7 @@ extern StatesGroup g_lio_state;
 extern std::shared_ptr<ImuProcess> g_imu_process;
 extern double g_lidar_star_tim;
 
-
+#define MAT_FROM_ARRAY(v) v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8]
 
 class Fast_lio
 {
@@ -811,12 +811,14 @@ public:
     Fast_lio()
     {
 
-        // Lidar_offset_to_IMU_extrinsic_R <<  0.999901 , 0.013091 ,-0.005085,
-        //            -0.013061 , 0.999897 , 0.005917 ,
-        //            0.005162 , -0.005850 , 0.999970 ;
-
         Lidar_offset_to_IMU_extrinsic_R = Eigen::Matrix3d::Identity();
+        vector<double> extrinR(9, 0.0);
+        vector<double> extrinT(3, 0.0);
+        nh.param<vector<double>>("fast_lio/extrinsic_T", extrinT, vector<double>());
+        nh.param<vector<double>>("fast_lio/extrinsic_R", extrinR, vector<double>());
+        Lidar_offset_to_IMU_extrinsic_R << MAT_FROM_ARRAY(extrinR);
 
+        ROS_INFO_STREAM( " extrinT: " << std::endl << extrinT[0] <<  std::endl << extrinT[1] <<  std::endl << extrinT[2] <<  std::endl  <<  std::endl) ;
         ROS_INFO_STREAM( " Lidar_offset_to_IMU_extrinsic_R: " << std::endl << Lidar_offset_to_IMU_extrinsic_R <<  std::endl  <<  std::endl) ;
 
         printf_line;
@@ -1556,7 +1558,7 @@ public:
                 surf_points.header.frame_id = "livox";
                 pubSurfPoint.publish(surf_points);
                             
-                pcl::io::savePCDFile (  filename , *laserCloudFullRes2 );
+                // pcl::io::savePCDFile (  filename , *laserCloudFullRes2 ); // 保存每一帧特征点
 
                 // ofstream lio_path_file("/home/map/lio_path.txt", ios::app);
 
