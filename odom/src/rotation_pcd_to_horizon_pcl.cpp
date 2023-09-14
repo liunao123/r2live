@@ -4,6 +4,7 @@
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
 #include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/filters/voxel_grid.h>
 
 #include <Eigen/Core>
 
@@ -23,9 +24,20 @@ int main(int argc, char **argv)
   }
   std::cout << "Point cloud file is \"" << cloud_file << "\"\n";
   pcl::PointCloud<pcl::PointXYZ> cloud;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_some;
 
   pcl::io::loadPCDFile(cloud_file, cloud);
-  printf("size of cloud map: %ld . \n", cloud.points.size());
+  printf("size of all cloud map: %ld . \n", cloud.points.size());
+
+  // dzlog_info(" pc size() %d ", cloud->size());
+  float range = 3.0;
+  static pcl::CropBox<pcl::PointXYZ> cropBoxFilter_temp(true);
+  cropBoxFilter_temp.setInputCloud( cloud.makeShared() );
+  cropBoxFilter_temp.setMin(Eigen::Vector4f(-range, -range, -range, 1.0f));
+  cropBoxFilter_temp.setMax(Eigen::Vector4f(range, range, range, 1.0f));
+  cropBoxFilter_temp.setNegative(false);
+  cropBoxFilter_temp.filter(*cloud_some);
+  printf("size of some cloud map: %ld . \n", cloud_some->points.size());
 
   // 创建一个模型参数对象，用于记录结果
   pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
@@ -42,7 +54,8 @@ int main(int argc, char **argv)
   // 设置误差容忍范围，也就是我说过的阈值
   seg.setDistanceThreshold(0.001);
   // 输入点云
-  seg.setInputCloud(cloud.makeShared());
+  // seg.setInputCloud(cloud.makeShared());
+  seg.setInputCloud( cloud_some );
   // 分割点云
   seg.segment(*inliers, *coefficients);
 
