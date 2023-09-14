@@ -35,9 +35,10 @@ int main(int argc, char **argv)
   cropBoxFilter_temp.setInputCloud( cloud.makeShared() );
   cropBoxFilter_temp.setMin(Eigen::Vector4f(-range, -range, -range, 1.0f));
   cropBoxFilter_temp.setMax(Eigen::Vector4f(range, range, range, 1.0f));
-  cropBoxFilter_temp.setNegative(false);
+  cropBoxFilter_temp.setNegative(false); 
   cropBoxFilter_temp.filter(*cloud_some);
   printf("size of some cloud map: %ld . \n", cloud_some->points.size());
+  // for test2
 
   // 创建一个模型参数对象，用于记录结果
   pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
