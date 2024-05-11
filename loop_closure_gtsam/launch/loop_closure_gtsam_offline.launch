@@ -1,0 +1,29 @@
+<launch>
+
+    <node pkg="loop_closure_gtsam" type="loop_closure_gtsam" name="loop_closure_gtsam"  output="screen"  >
+
+      <param name="check_for_loop_closures" type="bool"   value="true" />
+      <param name="translation_threshold"   type="double" value="0.1000" />
+      <param name="gicp_fitness"            type="double" value="0.20" />
+      <param name="detect_time_regional"    type="double" value="3.0" />
+      <param name="detect_step"             type="int"    value="2" />
+      <param name="max_detect_range"        type="double" value="60.0" />
+
+      <!-- GICP -->
+      <param name="gicp_tf_epsilon"    type="double" value="0.00001" />
+      <param name="gicp_corr_dist"     type="double" value="5.0" />
+      <param name="gicp_iterations"    type="int"    value="200" />
+
+      <!-- for offline opt -->
+      <remap from="/map_current_pose" to="/pose_offline"/>
+      <remap from="/livox_surf_point_at_imu" to="/points_offline"/>
+
+      <!-- for faster_lio -->
+      <!-- <remap from="/lidar_pose" to="/imu_pose"/>
+      <remap from="/livox_surf_point" to="/cloud_registered_body"/> -->
+
+    </node>
+      <!-- pose_graph -->
+      <!-- <include file="$(find pose_graph)/launch/pose_graph_v2.launch" /> -->
+     
+</launch>

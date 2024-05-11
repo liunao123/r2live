@@ -23,27 +23,69 @@
 #include <base_controller/CSGMapInfo.h>
 #include <Util/util.h>
 #include <sensor_msgs/PointCloud2.h>
-#include <pcl/io/pcd_io.h>
-#include <pcl/point_types.h>
-#include <pcl/common/transforms.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/visualization/cloud_viewer.h>
-#include <pcl/visualization/pcl_visualizer.h>
+
 #include <std_srvs/Trigger.h>
 #include "loop_closure_gtsam/LoopTimePair.h"
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/exact_time.h>
+#include <message_filters/sync_policies/approximate_time.h>
+
+#include <nav_msgs/OccupancyGrid.h>
+
+#include <geometry_utils/GeometryUtilsROS.h>
+#include <parameter_utils/ParameterUtils.h>
+#include <visualization_msgs/Marker.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/surface/gp3.h>
+#include <pcl/registration/gicp.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/filters/filter.h>
+#include <pcl/filters/crop_box.h>
+#include <pcl/filters/radius_outlier_removal.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/conditional_removal.h>
+#include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/kdtree/impl/kdtree_flann.hpp>
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+#include <pcl/common/transforms.h>
+#include <pcl/visualization/cloud_viewer.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl_ros/point_cloud.h>
+#include <pcl/common/common.h>
+
+#include <std_msgs/Empty.h>
+#include <std_msgs/Int8.h>
+#include <std_msgs/String.h>
+#include <thread>
+#include <zlog.h>
+#include <iostream>
+#include <cstdlib>
+#include <ctime>
+#include <chrono>
+#include <sys/stat.h>
+
+#include <nav_msgs/OccupancyGrid.h>
+#include "loop_closure_gtsam/gridMap.h"
+#include <tf/LinearMath/Matrix3x3.h>
+#include <tf/tf.h>
+#include <cstdint>
+#include <cstring>
+#include <png.h>
 
 using namespace std;
 
-typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
+typedef pcl::PointXYZRGB PointType;
+
+typedef pcl::PointCloud<PointType> PointCloud;
 typedef geometry_utils::MatrixNxNBase<double, 6> Mat66;
 typedef gtsam::noiseModel::Gaussian Gaussian;
 typedef gtsam::noiseModel::Diagonal Diagonal;
-typedef message_filters::sync_policies::ExactTime<geometry_msgs::PoseStamped, sensor_msgs::PointCloud2> MySyncPolicy;
-
+// typedef message_filters::sync_policies::ExactTime<geometry_msgs::PoseStamped, sensor_msgs::PointCloud2> MySyncPolicy;
+typedef message_filters::sync_policies::ApproximateTime<geometry_msgs::PoseStamped, sensor_msgs::PointCloud2> MySyncPolicy;
 
 class LidarLoopClosure
 {
@@ -53,9 +95,14 @@ public:
 
     bool Initialize(const ros::NodeHandle &n);
     void saveMap(int regionID,int mapID);
+    bool save_g2o_file(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res);
     void setVisionLoopTime(const std::vector< std::pair< double , double > > & loop_time);
     void setOneLoopTime(const double first, const double second);
     void setMapThreadDone();
+    void savePgm(nav_msgs::OccupancyGrid *map,std::string mapname);
+    void saveOccupancyGridMap2png(const nav_msgs::OccupancyGrid& occupancyGrid, const std::string& filename);
+    nav_msgs::OccupancyGrid genOccu(PointCloud::Ptr map_without_road,PointType minPt,PointType maxPt);
+    PointCloud::Ptr pointFilter(PointCloud::Ptr map_data);
 
     bool AddBetweenFactor(const geometry_utils::Transform3 &delta,const Mat66 &covariance,
                           const ros::Time &stamp,unsigned int *key);
@@ -139,9 +186,11 @@ private:
 
     // Visualization publishers.
     ros::Publisher pubLoopFindM;
+    ros::Publisher pubLoopCnt;    
     ros::Publisher pubSaveMapStsM;
     ros::Subscriber sub_saveMap;
     ros::ServiceServer server;
+    ros::ServiceServer server_debug_g2o;
 
     message_filters::Subscriber<geometry_msgs::PoseStamped> *sub_lidar_pose;
     message_filters::Subscriber<sensor_msgs::PointCloud2> *sub_surf_points;
@@ -164,11 +213,17 @@ private:
     unsigned int loop_cnts_;
     int detect_step_;
     double detect_time_regional_;
+    double max_detect_range_;
+    
     // 记录时间回环的时间戳 成对
     std::vector< std::pair< double , double > > loop_time_;
     std::queue< std::pair< double , double > > loop_time_queue;
     std::string strWorkDirM;
     std::mutex g_Mutex;
+    std::vector< geometry_msgs::PoseStampedConstPtr > vecLidarPoseM;
+
+    pcl::octree::OctreePointCloudSearch<PointType>::Ptr g_mapOctree;
+
 };
 
 #endif

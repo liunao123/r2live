@@ -1,0 +1,13 @@
+<launch>
+
+    <arg name="config_path" default = "/opt/csg/slam/navs/param/dh_cam_v2_pose_graph.yaml" />
+    
+    <!-- <arg name="config_path" default = "/opt/csg/slam/navs/param/open_data_eee01.yaml" /> -->
+    <!-- <arg name="config_path" default = "/opt/csg/slam/navs/param/newer.yaml" /> -->
+
+    <node name="pose_graph" pkg="pose_graph" type="pose_graph" output="screen">
+        <param name="config_file" type="string" value="$(arg config_path)" />
+        <param name="img_rate" type="double" value="2" />
+    </node>
+
+</launch>

@@ -110,6 +110,7 @@ void image_callback(const sensor_msgs::ImageConstPtr &image_msg)
     m_buf.lock();
     image_buf.push(image_msg);
     m_buf.unlock();
+    // ROS_WARN("image_buf size %ld", image_buf.size());
     // printf(" image time %f \n", image_msg->header.stamp.toSec());
     last_image_time = image_msg->header.stamp.toSec();
 }
@@ -397,13 +398,15 @@ int main(int argc, char **argv)
     {
         ROW = fsSettings["image_height"];
         COL = fsSettings["image_width"];
-        std::string pkg_path = ros::package::getPath("pose_graph");
-        string vocabulary_file = pkg_path + "/../support_files/brief_k10L6.bin";
-        cout << "vocabulary_file" << vocabulary_file << endl;
+        cout << "image ROW and COL is:" << ROW << " " << COL << endl;
+        string vocabulary_file;
+        fsSettings["brief_bin_file"] >> vocabulary_file;
+        cout << "vocabulary_file is : " << vocabulary_file << endl;
         posegraph.loadVocabulary(vocabulary_file);
 
-        BRIEF_PATTERN_FILE = pkg_path + "/../support_files/brief_pattern.yml";
-        cout << "BRIEF_PATTERN_FILE " << BRIEF_PATTERN_FILE << endl;
+        fsSettings["brief_pattern_file"] >> BRIEF_PATTERN_FILE;
+        cout << "BRIEF_PATTERN_FILE is : " << BRIEF_PATTERN_FILE << endl;
+
         m_camera = camodocal::CameraFactory::instance()->generateCameraFromYamlFile(config_file.c_str());
 
         fsSettings["image_topic"] >> IMAGE_TOPIC;        
@@ -413,7 +416,8 @@ int main(int argc, char **argv)
         cout << "save_image " << DEBUG_IMAGE << endl;
 
         // create folder if not exists
-        FileSystemHelper::createDirectoryIfNotExists(POSE_GRAPH_SAVE_PATH.c_str());
+       FileSystemHelper::createDirectoryIfNotExists("/home/map/pose_graph");
+       FileSystemHelper::createDirectoryIfNotExists(POSE_GRAPH_SAVE_PATH.c_str());
         FileSystemHelper::createDirectoryIfNotExists(VINS_RESULT_PATH.c_str());
 
         VISUALIZE_IMU_FORWARD = fsSettings["visualize_imu_forward"];
